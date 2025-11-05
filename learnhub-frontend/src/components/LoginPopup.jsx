@@ -31,9 +31,15 @@ const LoginPopup = ({ onClose }) => {
             return;
         }
         try {
-            const response = await axios.post('http://localhost:8080/auth/login', { email, password });
-            const { token, user } = response.data; // Giả định response chứa { token, user: { role } }
+            const response = await axios.post('http://localhost:8080/api/v1/auth/login', { email, password });
+            const { token, user } = response.data;
+            
+            // Lưu token và user info vào localStorage
             localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify(user));
+            
+            // Trigger custom event để Header cập nhật
+            window.dispatchEvent(new Event('userLogin'));
 
             // Xử lý điều hướng dựa trên role
             switch (user.role) {
@@ -53,7 +59,7 @@ const LoginPopup = ({ onClose }) => {
 
             handleClose(); // Đóng popup sau khi điều hướng
         } catch (err) {
-            setError('Tài khoản hoặc mật khẩu không đúng');
+            setError(err.response?.data?.message || 'Tài khoản hoặc mật khẩu không đúng');
         }
     };
 

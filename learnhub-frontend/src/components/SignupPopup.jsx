@@ -22,7 +22,7 @@ const SignupPopup = ({ onClose }) => {
 
     const checkEmailAvailability = async (email) => {
         try {
-            await axios.post('http://localhost:8080/auth/register', { email, password: '', fullName: '' });
+            await axios.post('http://localhost:8080/api/v1/auth/register', { email, password: '', fullName: '' });
         } catch (err) {
             if (err.response && err.response.status === 400 && err.response.data.message === 'Email đã tồn tại') {
                 setEmailCheckError('Email đã tồn tại');
@@ -67,8 +67,16 @@ const SignupPopup = ({ onClose }) => {
             return;
         }
         try {
-            const response = await axios.post('http://localhost:8080/auth/register', { email, password, fullName, role: 'Student' });
-            localStorage.setItem('token', response.data.token);
+            const response = await axios.post('http://localhost:8080/api/v1/auth/register', { email, password, fullName });
+            const { token, user } = response.data;
+            
+            // Lưu token và user info vào localStorage
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify(user));
+            
+            // Trigger custom event để Header cập nhật
+            window.dispatchEvent(new Event('userLogin'));
+            
             handleClose();
         } catch (err) {
             console.log('Error:', err.response ? err.response.data : err.message);
