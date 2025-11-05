@@ -1,20 +1,27 @@
 // src/App.jsx
 import React from 'react';
-import Header from './components/Header'; // Import Header
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Header from './components/Header';
 import Footer from './components/Footer';
-import HomePage from './pages/HomePage'; // Import HomePage
-// Footer sẽ thêm sau
+import HomePage from './pages/HomePage';
+import CourseDetail from './pages/CourseDetail';
+import SearchPage from './pages/SearchPage';
 
 function App() {
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <div className="flex-grow">
-        {/* Sau này sẽ dùng Router để hiển thị các trang khác nhau */}
-        <HomePage />
+    <Router>
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <div className="flex-grow">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/course/:id" element={<CourseDetail />} />
+            <Route path="/search" element={<SearchPage />} />
+          </Routes>
+        </div>
+        <Footer />
       </div>
-      <Footer />
-    </div>
+    </Router>
   );
 }
 
