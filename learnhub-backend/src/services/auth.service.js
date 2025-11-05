@@ -1,45 +1,87 @@
 // src/services/auth.service.js
 
-const { users } = require('../models'); // Đảm bảo bạn import đúng model User
+const { users } = require('../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
 
-exports.login = async (email, password) => {
-    // 1. Tìm người dùng bằng email
-    const user = await users.findOne({ where: { email } });
+exports.loginService = async (email, password) => {
+    try {
+        console.log('Login input:', { email, password }); // Debug input
+        const user = await users.findOne({ where: { email } });
+        if (!user) {
+            throw new Error('Email không tồn tại');
+        }
 
-    // 2. Nếu không tìm thấy người dùng, báo lỗi
-    if (!user) {
-        throw new Error('Email hoặc mật khẩu không chính xác.');
+        console.log('User found:', user); // Debug user data
+        const isMatch = await bcrypt.compare(password, user.passwordhash);
+        if (!isMatch) {
+            throw new Error('Mật khẩu không đúng');
+        }
+
+        // Kiểm tra trước khi tạo token
+        if (!user.userid || !user.role) {
+            throw new Error('Dữ liệu user không hợp lệ');
+        }
+
+        const token = jwt.sign(
+            { id: user.userid, role: user.role },
+            process.env.JWT_SECRET || 'default_secret', // Fallback nếu JWT_SECRET undefined
+            { expiresIn: '1h' }
+        );
+
+        return {
+            token,
+            user: {
+                id: user.userid,
+                email: user.email,
+                full_name: user.fullname,
+                role: user.role,
+                profilepicture: user.profilepicture,
+            },
+        };
+    } catch (error) {
+        console.error('Login error:', error); // Debug lỗi
+        throw error;
     }
+};
 
-    // 3. So sánh mật khẩu người dùng nhập với mật khẩu đã mã hóa trong DB
-    const isPasswordMatch = await bcrypt.compare(password, user.passwordhash);
+exports.registerService = async (email, password, fullName, role = 'Student') => {
+    try {
+        console.log('Register input:', { email, password, fullName });
+        const existingUser = await users.findOne({ where: { email } });
+        if (existingUser) {
+            throw new Error('Email đã tồn tại');
+        }
 
-    // 4. Nếu mật khẩu không khớp, báo lỗi
-    if (!isPasswordMatch) {
-        throw new Error('Email hoặc mật khẩu không chính xác.');
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+        const user = await users.create({
+            email,
+            passwordhash: hashedPassword,
+            fullname: fullName,
+            role,
+            profilepicture: null,
+        });
+
+        const token = jwt.sign(
+            { id: user.userid, role: user.role },
+            process.env.JWT_SECRET || 'default_secret',
+            { expiresIn: '1h' }
+        );
+
+        return {
+            token,
+            user: {
+                id: user.userid,
+                email: user.email,
+                full_name: user.fullname,
+                role: user.role,
+                profilepicture: user.profilepicture,
+            },
+        };
+    } catch (error) {
+        console.error('Register error:', error);
+        throw error;
     }
-
-    // 5. Nếu mọi thứ chính xác, tạo JWT token
-    const tokenPayload = { 
-        id: user.userid, 
-        email: user.email, 
-        role: user.role 
-    };
-    
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { 
-        expiresIn: '1h' // Token hết hạn sau 1 giờ
-    });
-
-    // Trả về thông tin người dùng (bỏ mật khẩu) và token
-    return {
-        user: {
-            id: user.userid,
-            fullName: user.fullname,
-            email: user.email,
-            role: user.role
-        },
-        token
-    };
 };

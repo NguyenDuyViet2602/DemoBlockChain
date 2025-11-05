@@ -3,6 +3,6 @@ const router = express.Router();
 const authController = require('../../controllers/auth.controller');
 
 router.post('/login', authController.login);
-// ... các routes khác
+router.post('/register', authController.register); // Thêm route cho đăng ký
 
 module.exports = router;
