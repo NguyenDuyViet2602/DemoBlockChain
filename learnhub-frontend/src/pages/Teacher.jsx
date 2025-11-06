@@ -1,11 +1,1144 @@
-import React from 'react';
+// src/pages/Teacher.jsx
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import {
+  FaHome,
+  FaBook,
+  FaUsers,
+  FaClipboardList,
+  FaChartLine,
+  FaBars,
+  FaTimes,
+  FaPlus,
+  FaEdit,
+  FaTrash,
+  FaCheck,
+  FaTimesCircle,
+} from 'react-icons/fa';
 
 const Teacher = () => {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardStats();
+  }, []);
+
+  const fetchDashboardStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:8080/api/v1/teacher/dashboard/stats', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setStats(response.data.data);
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const menuItems = [
+    { id: 'dashboard', label: 'Tổng quan', icon: FaHome },
+    { id: 'courses', label: 'Khóa học của tôi', icon: FaBook },
+    { id: 'students', label: 'Học viên', icon: FaUsers },
+    { id: 'submissions', label: 'Bài tập chờ chấm', icon: FaClipboardList },
+    { id: 'analytics', label: 'Thống kê', icon: FaChartLine },
+  ];
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <DashboardStats stats={stats} loading={loading} />;
+      case 'courses':
+        return <MyCourses onRefresh={fetchDashboardStats} />;
+      case 'students':
+        return <MyStudents />;
+      case 'submissions':
+        return <PendingSubmissions onRefresh={fetchDashboardStats} />;
+      case 'analytics':
+        return <Analytics />;
+      default:
+        return <DashboardStats stats={stats} loading={loading} />;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div
+        className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white border-r transition-all duration-300 z-30 ${
+          sidebarOpen ? 'w-64' : 'w-0 overflow-hidden'
+        }`}
+      >
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-800">Giảng viên</h2>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden text-gray-500 hover:text-gray-700"
+            >
+              <FaTimes />
+            </button>
+          </div>
+          <nav className="space-y-1">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                    activeTab === item.id
+                      ? 'bg-emerald-50 text-emerald-700 font-medium'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <Icon className="text-lg" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-0'}`}>
+        {/* Mobile Header */}
+        <div className="lg:hidden bg-white border-b p-4 flex items-center gap-4">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-gray-700 hover:text-gray-900"
+          >
+            <FaBars className="text-xl" />
+          </button>
+          <h1 className="text-xl font-bold text-gray-800">Giảng viên</h1>
+        </div>
+
+        {/* Content Area */}
+        <div className="p-6">{renderContent()}</div>
+      </div>
+    </div>
+  );
+};
+
+// Dashboard Stats Component
+const DashboardStats = ({ stats, loading }) => {
+  if (loading) {
+    return <div className="text-center py-12">Đang tải...</div>;
+  }
+
+  if (!stats) {
+    return <div className="text-center py-12 text-red-500">Không thể tải thống kê</div>;
+  }
+
+  const statCards = [
+    {
+      title: 'Tổng khóa học',
+      value: stats.totalCourses,
+      color: 'bg-blue-500',
+      icon: '📚',
+    },
+    {
+      title: 'Khóa học đã duyệt',
+      value: stats.approvedCourses,
+      color: 'bg-green-500',
+      icon: '✅',
+    },
+    {
+      title: 'Khóa học chờ duyệt',
+      value: stats.pendingCourses,
+      color: 'bg-yellow-500',
+      icon: '⏳',
+    },
+    {
+      title: 'Tổng học viên',
+      value: stats.totalStudents,
+      color: 'bg-purple-500',
+      icon: '👥',
+    },
+    {
+      title: 'Bài tập đã nộp',
+      value: stats.totalSubmissions,
+      color: 'bg-indigo-500',
+      icon: '📝',
+    },
+    {
+      title: 'Bài tập chờ chấm',
+      value: stats.pendingSubmissions,
+      color: 'bg-orange-500',
+      icon: '⏰',
+    },
+    {
+      title: 'Doanh thu',
+      value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+        stats.totalRevenue
+      ),
+      color: 'bg-emerald-500',
+      icon: '💰',
+    },
+    {
+      title: 'Đánh giá trung bình',
+      value: stats.averageRating ? `${stats.averageRating} ⭐` : 'Chưa có',
+      color: 'bg-pink-500',
+      icon: '⭐',
+    },
+  ];
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Tổng quan</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statCards.map((card, index) => (
+          <div
+            key={index}
+            className="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm mb-2">{card.title}</p>
+                <p className="text-2xl font-bold text-gray-800">{card.value}</p>
+              </div>
+              <div className={`${card.color} w-12 h-12 rounded-full flex items-center justify-center text-2xl`}>
+                {card.icon}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// My Courses Component
+const MyCourses = ({ onRefresh }) => {
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [filters, setFilters] = useState({ status: '', search: '' });
+  const [showModal, setShowModal] = useState(false);
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [formData, setFormData] = useState({
+    coursename: '',
+    description: '',
+    price: 0,
+    categoryid: '',
+    level: '',
+    language: '',
+    duration: '',
+    imageurl: '',
+  });
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    fetchCourses();
+    fetchCategories();
+  }, [page, filters]);
+
+  const fetchCategories = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:8080/api/v1/categories', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCategories(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  const fetchCourses = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10',
+        ...(filters.status && { status: filters.status }),
+        ...(filters.search && { search: filters.search }),
+      });
+
+      const response = await axios.get(
+        `http://localhost:8080/api/v1/teacher/courses?${params}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setCourses(response.data.data);
+      setTotalPages(response.data.pagination.totalPages);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('token');
+      if (editingCourse) {
+        await axios.put(
+          `http://localhost:8080/api/v1/courses/${editingCourse.courseid}`,
+          formData,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        alert('Cập nhật khóa học thành công!');
+      } else {
+        await axios.post('http://localhost:8080/api/v1/courses', formData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        alert('Tạo khóa học thành công! Đang chờ admin duyệt.');
+      }
+      setShowModal(false);
+      setEditingCourse(null);
+      setFormData({
+        coursename: '',
+        description: '',
+        price: 0,
+        categoryid: '',
+        level: '',
+        language: '',
+        duration: '',
+        imageurl: '',
+      });
+      fetchCourses();
+      if (onRefresh) onRefresh();
+    } catch (error) {
+      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  const handleEdit = (course) => {
+    setEditingCourse(course);
+    setFormData({
+      coursename: course.coursename,
+      description: course.description || '',
+      price: course.price,
+      categoryid: course.categoryid || '',
+      level: course.level || '',
+      language: course.language || '',
+      duration: course.duration || '',
+      imageurl: course.imageurl || '',
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (courseId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa khóa học này?')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`http://localhost:8080/api/v1/courses/${courseId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchCourses();
+      if (onRefresh) onRefresh();
+      alert('Xóa khóa học thành công!');
+    } catch (error) {
+      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const colors = {
+      Approved: 'bg-green-100 text-green-800',
+      Pending: 'bg-yellow-100 text-yellow-800',
+      Rejected: 'bg-red-100 text-red-800',
+    };
     return (
-        <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-4">Teacher Dashboard</h1>
-            <p>Welcome to the Teacher Dashboard! Here you can manage your courses and students.</p>
-            {/* Thêm logic quản lý khóa học sau */}
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[status] || ''}`}>
+        {status}
+      </span>
+    );
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-800">Khóa học của tôi</h1>
+        <button
+          onClick={() => {
+            setEditingCourse(null);
+            setFormData({
+              coursename: '',
+              description: '',
+              price: 0,
+              categoryid: '',
+              level: '',
+              language: '',
+              duration: '',
+              imageurl: '',
+            });
+            setShowModal(true);
+          }}
+          className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+        >
+          <FaPlus /> Tạo khóa học mới
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-lg shadow-md mb-6 flex gap-4">
+        <input
+          type="text"
+          placeholder="Tìm kiếm khóa học..."
+          value={filters.search}
+          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+        />
+        <select
+          value={filters.status}
+          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+          className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value="">Tất cả trạng thái</option>
+          <option value="Approved">Approved</option>
+          <option value="Pending">Pending</option>
+          <option value="Rejected">Rejected</option>
+        </select>
+      </div>
+
+      {/* Courses Table */}
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        {loading ? (
+          <div className="text-center py-12">Đang tải...</div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Tên khóa học
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Danh mục
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Giá
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Học viên
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Đánh giá
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Trạng thái
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Thao tác
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {courses.map((course) => (
+                    <tr key={course.courseid}>
+                      <td className="px-6 py-4 text-sm font-medium">{course.coursename}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {course.category?.categoryname || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {new Intl.NumberFormat('vi-VN', {
+                          style: 'currency',
+                          currency: 'VND',
+                        }).format(course.price)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {course.enrollmentCount || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {course.averageRating ? `${course.averageRating} ⭐` : 'Chưa có'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(course.status)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                        <button
+                          onClick={() => handleEdit(course)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <FaEdit />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(course.courseid)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          <FaTrash />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Pagination */}
+            <div className="bg-gray-50 px-6 py-3 flex items-center justify-between">
+              <button
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50"
+              >
+                Trước
+              </button>
+              <span className="text-sm text-gray-700">
+                Trang {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50"
+              >
+                Sau
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Modal Create/Edit Course */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">
+              {editingCourse ? 'Sửa khóa học' : 'Tạo khóa học mới'}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Tên khóa học *</label>
+                <input
+                  type="text"
+                  value={formData.coursename}
+                  onChange={(e) => setFormData({ ...formData, coursename: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Mô tả</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  rows="4"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Giá (VND) *</label>
+                  <input
+                    type="number"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    min="0"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Danh mục</label>
+                  <select
+                    value={formData.categoryid}
+                    onChange={(e) => setFormData({ ...formData, categoryid: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="">Chọn danh mục</option>
+                    {categories.map((cat) => (
+                      <option key={cat.categoryid} value={cat.categoryid}>
+                        {cat.categoryname}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Cấp độ</label>
+                  <select
+                    value={formData.level}
+                    onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="">Chọn cấp độ</option>
+                    <option value="Beginner">Beginner</option>
+                    <option value="Intermediate">Intermediate</option>
+                    <option value="Advanced">Advanced</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Ngôn ngữ</label>
+                  <input
+                    type="text"
+                    value={formData.language}
+                    onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    placeholder="VD: Tiếng Việt"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Thời lượng</label>
+                  <input
+                    type="text"
+                    value={formData.duration}
+                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    placeholder="VD: 10 giờ"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">URL hình ảnh</label>
+                <input
+                  type="text"
+                  value={formData.imageurl}
+                  onChange={(e) => setFormData({ ...formData, imageurl: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  placeholder="https://..."
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingCourse(null);
+                  }}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                >
+                  {editingCourse ? 'Cập nhật' : 'Tạo'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// My Students Component
+const MyStudents = () => {
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [filters, setFilters] = useState({ search: '', courseId: '' });
+  const [courses, setCourses] = useState([]);
+
+  useEffect(() => {
+    fetchStudents();
+    fetchCourses();
+  }, [page, filters]);
+
+  const fetchCourses = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:8080/api/v1/teacher/courses?limit=100', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCourses(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    }
+  };
+
+  const fetchStudents = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10',
+        ...(filters.search && { search: filters.search }),
+        ...(filters.courseId && { courseId: filters.courseId }),
+      });
+
+      const response = await axios.get(
+        `http://localhost:8080/api/v1/teacher/students?${params}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setStudents(response.data.data);
+      setTotalPages(response.data.pagination.totalPages);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Học viên của tôi</h1>
+
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-lg shadow-md mb-6 flex gap-4">
+        <input
+          type="text"
+          placeholder="Tìm kiếm học viên..."
+          value={filters.search}
+          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+        />
+        <select
+          value={filters.courseId}
+          onChange={(e) => setFilters({ ...filters, courseId: e.target.value })}
+          className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value="">Tất cả khóa học</option>
+          {courses.map((course) => (
+            <option key={course.courseid} value={course.courseid}>
+              {course.coursename}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Students Table */}
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        {loading ? (
+          <div className="text-center py-12">Đang tải...</div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Học viên
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Khóa học
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Ngày đăng ký
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {students.map((enrollment) => (
+                    <tr key={enrollment.enrollmentid}>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {enrollment.student?.profilepicture ? (
+                            <img
+                              src={enrollment.student.profilepicture}
+                              alt={enrollment.student.fullname}
+                              className="w-10 h-10 rounded-full"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-semibold">
+                              {enrollment.student?.fullname?.charAt(0) || 'U'}
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-sm font-medium">{enrollment.student?.fullname}</div>
+                            <div className="text-xs text-gray-500">{enrollment.student?.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm">{enrollment.course?.coursename}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(enrollment.enrolledat).toLocaleDateString('vi-VN')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Pagination */}
+            <div className="bg-gray-50 px-6 py-3 flex items-center justify-between">
+              <button
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50"
+              >
+                Trước
+              </button>
+              <span className="text-sm text-gray-700">
+                Trang {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50"
+              >
+                Sau
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Pending Submissions Component
+const PendingSubmissions = ({ onRefresh }) => {
+  const [submissions, setSubmissions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [showGradeModal, setShowGradeModal] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [gradeData, setGradeData] = useState({ grade: '', feedback: '' });
+
+  useEffect(() => {
+    fetchSubmissions();
+  }, [page]);
+
+  const fetchSubmissions = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `http://localhost:8080/api/v1/teacher/submissions/pending?page=${page}&limit=10`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setSubmissions(response.data.data);
+      setTotalPages(response.data.pagination.totalPages);
+    } catch (error) {
+      console.error('Error fetching submissions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGrade = async () => {
+    if (!gradeData.grade || gradeData.grade < 0 || gradeData.grade > 10) {
+      alert('Vui lòng nhập điểm từ 0 đến 10');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `http://localhost:8080/api/v1/teacher/submissions/${selectedSubmission.submissionid}/grade`,
+        gradeData,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      alert('Chấm điểm thành công!');
+      setShowGradeModal(false);
+      setSelectedSubmission(null);
+      setGradeData({ grade: '', feedback: '' });
+      fetchSubmissions();
+      if (onRefresh) onRefresh();
+    } catch (error) {
+      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Bài tập chờ chấm</h1>
+
+      {/* Submissions Table */}
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        {loading ? (
+          <div className="text-center py-12">Đang tải...</div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Học viên
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Khóa học
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Bài tập
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Hạn nộp
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Ngày nộp
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Thao tác
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {submissions.map((submission) => (
+                    <tr key={submission.submissionid}>
+                      <td className="px-6 py-4 text-sm">{submission.student?.fullname}</td>
+                      <td className="px-6 py-4 text-sm">
+                        {submission.assignment?.course?.coursename}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium">
+                        {submission.assignment?.title}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(submission.assignment?.duedate).toLocaleDateString('vi-VN')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(submission.submittedat).toLocaleDateString('vi-VN')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={() => {
+                            setSelectedSubmission(submission);
+                            setGradeData({ grade: '', feedback: '' });
+                            setShowGradeModal(true);
+                          }}
+                          className="text-emerald-600 hover:text-emerald-800"
+                        >
+                          Chấm điểm
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Pagination */}
+            <div className="bg-gray-50 px-6 py-3 flex items-center justify-between">
+              <button
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50"
+              >
+                Trước
+              </button>
+              <span className="text-sm text-gray-700">
+                Trang {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50"
+              >
+                Sau
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Grade Modal */}
+      {showGradeModal && selectedSubmission && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Chấm điểm bài tập</h2>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Học viên:</p>
+                <p className="font-medium">{selectedSubmission.student?.fullname}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Bài tập:</p>
+                <p className="font-medium">{selectedSubmission.assignment?.title}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Điểm (0-10) *</label>
+                <input
+                  type="number"
+                  value={gradeData.grade}
+                  onChange={(e) => setGradeData({ ...gradeData, grade: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  min="0"
+                  max="10"
+                  step="0.1"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Nhận xét</label>
+                <textarea
+                  value={gradeData.feedback}
+                  onChange={(e) => setGradeData({ ...gradeData, feedback: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  rows="4"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    setShowGradeModal(false);
+                    setSelectedSubmission(null);
+                    setGradeData({ grade: '', feedback: '' });
+                  }}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleGrade}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                >
+                  Lưu điểm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Analytics Component
+const Analytics = () => {
+  const [courses, setCourses] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  const fetchCourses = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:8080/api/v1/teacher/courses?limit=100', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCourses(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    }
+  };
+
+  const fetchAnalytics = async (courseId) => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `http://localhost:8080/api/v1/teacher/courses/${courseId}/analytics`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setAnalytics(response.data.data);
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Thống kê</h1>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Course Selector */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-lg font-bold mb-4">Chọn khóa học</h2>
+            <select
+              value={selectedCourse || ''}
+              onChange={(e) => {
+                const courseId = e.target.value;
+                setSelectedCourse(courseId);
+                if (courseId) {
+                  fetchAnalytics(courseId);
+                } else {
+                  setAnalytics(null);
+                }
+              }}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Chọn khóa học...</option>
+              {courses.map((course) => (
+                <option key={course.courseid} value={course.courseid}>
+                  {course.coursename}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Analytics Display */}
+        <div className="lg:col-span-2">
+          {loading ? (
+            <div className="text-center py-12">Đang tải...</div>
+          ) : analytics ? (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-bold mb-6">Thống kê chi tiết</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600">Số học viên</p>
+                  <p className="text-2xl font-bold">{analytics.enrollmentCount}</p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600">Đã hoàn thành</p>
+                  <p className="text-2xl font-bold">{analytics.completionCount}</p>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600">Tỷ lệ hoàn thành</p>
+                  <p className="text-2xl font-bold">{analytics.completionRate}%</p>
+                </div>
+                <div className="bg-orange-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600">Số bài tập</p>
+                  <p className="text-2xl font-bold">{analytics.assignmentCount}</p>
+                </div>
+                <div className="bg-indigo-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600">Bài đã nộp</p>
+                  <p className="text-2xl font-bold">{analytics.submissionCount}</p>
+                </div>
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600">Đánh giá TB</p>
+                  <p className="text-2xl font-bold">{analytics.averageRating} ⭐</p>
+                </div>
+              </div>
+              <div className="bg-emerald-50 p-4 rounded-lg mb-6">
+                <p className="text-sm text-gray-600">Doanh thu</p>
+                <p className="text-2xl font-bold">
+                  {new Intl.NumberFormat('vi-VN', {
+                    style: 'currency',
+                    currency: 'VND',
+                  }).format(analytics.revenue)}
+                </p>
+              </div>
+              {analytics.reviews && analytics.reviews.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-bold mb-4">Đánh giá gần đây</h3>
+                  <div className="space-y-3">
+                    {analytics.reviews.map((review) => (
+                      <div key={review.reviewid} className="border-b pb-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="font-medium">{review.student?.fullname}</span>
+                          <span className="text-yellow-500">
+                            {'⭐'.repeat(review.rating || 0)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">{review.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-md p-6 text-center text-gray-500">
+              Vui lòng chọn khóa học để xem thống kê
+            </div>
+          )}
+        </div>
+      </div>
         </div>
     );
 };

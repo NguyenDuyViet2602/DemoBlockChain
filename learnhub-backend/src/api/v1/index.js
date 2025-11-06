@@ -52,6 +52,12 @@ router.use('/assignments', assignmentRoutes);
 
 const forumRoutes = require('./forum.route');
 router.use('/forums', forumRoutes);
+
+const adminRoutes = require('./admin.route');
+router.use('/admin', adminRoutes);
+
+const teacherRoutes = require('./teacher.route');
+router.use('/teacher', teacherRoutes);
 // ✨ ===================== ✨
 
 module.exports = router;

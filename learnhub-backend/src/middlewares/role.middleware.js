@@ -1,24 +1,19 @@
-const { Users } = require('../models');
+// src/middlewares/role.middleware.js
+// Middleware này chạy sau authMiddleware, nên req.user đã tồn tại
+const roleMiddleware = (allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Chưa đăng nhập' });
+    }
 
-const authorize = (...roles) => {
-    return async (req, res, next) => {
-        try {
-            const token = req.header('Authorization')?.replace('Bearer ', '');
-            if (!token) return res.status(401).json({ message: 'No token provided' });
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: `Truy cập bị từ chối. Yêu cầu quyền: ${allowedRoles.join(' hoặc ')}.`,
+      });
+    }
 
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            req.user = decoded;
-
-            const user = await Users.findByPk(decoded.id);
-            if (!user || !roles.includes(user.role)) {
-                return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
-            }
-
-            next();
-        } catch (error) {
-            res.status(401).json({ message: 'Invalid token or unauthorized' });
-        }
-    };
+    next();
+  };
 };
 
-module.exports = authorize;
+module.exports = roleMiddleware;
