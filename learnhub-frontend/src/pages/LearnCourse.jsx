@@ -13,8 +13,10 @@ import {
 } from 'react-icons/fa';
 import QuizPlayer from '../components/QuizPlayer';
 import VideoPlayer from '../components/VideoPlayer';
+import { useToast } from '../contexts/ToastContext';
 
 const LearnCourse = () => {
+  const toast = useToast();
   const { courseId } = useParams();
   const navigate = useNavigate();
   const [course, setCourse] = useState(null);
@@ -104,10 +106,10 @@ const LearnCourse = () => {
         }
       );
       await fetchCourseData();
-      alert('Đã đánh dấu bài học hoàn thành!');
+      toast.success('Đã đánh dấu bài học hoàn thành!');
     } catch (err) {
       console.error('Error marking complete:', err);
-      alert('Lỗi: ' + (err.response?.data?.message || err.message));
+      toast.error('Lỗi: ' + (err.response?.data?.message || err.message));
     } finally {
       setMarkingComplete(false);
     }
@@ -144,7 +146,7 @@ const LearnCourse = () => {
       await fetchComments(selectedLesson.lessonid);
     } catch (err) {
       console.error('Error submitting comment:', err);
-      alert('Lỗi: ' + (err.response?.data?.message || err.message));
+      toast.error('Lỗi: ' + (err.response?.data?.message || err.message));
     } finally {
       setSubmittingComment(false);
     }

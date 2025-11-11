@@ -3,8 +3,11 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import RatingStars from '../components/site/RatingStars';
+import VideoPlayer from '../components/VideoPlayer';
+import { useToast } from '../contexts/ToastContext';
 
 export default function CourseDetail() {
+  const toast = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
   const [course, setCourse] = useState(null);
@@ -103,12 +106,12 @@ export default function CourseDetail() {
   const handleSubmitReview = async (e) => {
     e.preventDefault();
     if (!reviewRating || reviewRating < 1 || reviewRating > 5) {
-      alert('Vui lòng chọn số sao đánh giá từ 1 đến 5');
+      toast.warning('Vui lòng chọn số sao đánh giá từ 1 đến 5');
       return;
     }
 
     if (!isLoggedIn) {
-      alert('Vui lòng đăng nhập để đánh giá khóa học');
+      toast.warning('Vui lòng đăng nhập để đánh giá khóa học');
       return;
     }
 
@@ -133,10 +136,10 @@ export default function CourseDetail() {
       
       // Refresh reviews
       await fetchCourseDetails();
-      alert('Cảm ơn bạn đã đánh giá khóa học!');
+      toast.success('Cảm ơn bạn đã đánh giá khóa học!');
     } catch (err) {
       console.error('Error submitting review:', err);
-      alert(err.response?.data?.message || 'Lỗi khi gửi đánh giá. ' + err.message);
+      toast.error(err.response?.data?.message || 'Lỗi khi gửi đánh giá. ' + err.message);
     } finally {
       setSubmittingReview(false);
     }
@@ -144,7 +147,7 @@ export default function CourseDetail() {
 
   const handleToggleFavorite = async () => {
     if (!isLoggedIn) {
-      alert('Vui lòng đăng nhập để thêm vào yêu thích');
+      toast.warning('Vui lòng đăng nhập để thêm vào yêu thích');
       return;
     }
 
@@ -156,7 +159,7 @@ export default function CourseDetail() {
           headers: { Authorization: `Bearer ${token}` }
         });
         setIsFavorite(false);
-        alert('Đã xóa khỏi danh sách yêu thích');
+        toast.success('Đã xóa khỏi danh sách yêu thích');
       } else {
         // Add to favorites
         await axios.post(
@@ -167,17 +170,17 @@ export default function CourseDetail() {
           }
         );
         setIsFavorite(true);
-        alert('Đã thêm vào danh sách yêu thích');
+        toast.success('Đã thêm vào danh sách yêu thích');
       }
     } catch (err) {
       console.error('Error toggling favorite:', err);
-      alert(err.response?.data?.message || 'Lỗi khi cập nhật yêu thích');
+      toast.error(err.response?.data?.message || 'Lỗi khi cập nhật yêu thích');
     }
   };
 
   const handlePurchaseOrLearn = async () => {
     if (!isLoggedIn) {
-      alert('Vui lòng đăng nhập để mua khóa học');
+      toast.warning('Vui lòng đăng nhập để mua khóa học');
       return;
     }
 
@@ -196,12 +199,12 @@ export default function CourseDetail() {
           { courseId: parseInt(id) },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        alert('Đăng ký khóa học miễn phí thành công!');
+        toast.success('Đăng ký khóa học miễn phí thành công!');
         setIsEnrolled(true);
         navigate(`/learn/${id}`);
       } catch (err) {
         console.error('Error enrolling:', err);
-        alert(err.response?.data?.message || 'Lỗi khi đăng ký khóa học');
+        toast.error(err.response?.data?.message || 'Lỗi khi đăng ký khóa học');
       }
       return;
     }
@@ -221,19 +224,19 @@ export default function CourseDetail() {
         // Đã có trong giỏ hàng, đi thẳng đến checkout
         navigate('/checkout');
       } else {
-        alert(err.response?.data?.message || 'Lỗi khi thêm vào giỏ hàng');
+        toast.error(err.response?.data?.message || 'Lỗi khi thêm vào giỏ hàng');
       }
     }
   };
 
   const handleAddToCart = async () => {
     if (!isLoggedIn) {
-      alert('Vui lòng đăng nhập để thêm vào giỏ hàng');
+      toast.warning('Vui lòng đăng nhập để thêm vào giỏ hàng');
       return;
     }
 
     if (course && course.price === 0) {
-      alert('Khóa học miễn phí, vui lòng bấm "Đăng ký miễn phí"');
+      toast.info('Khóa học miễn phí, vui lòng bấm "Đăng ký miễn phí"');
       return;
     }
 
@@ -244,13 +247,13 @@ export default function CourseDetail() {
         { courseId: parseInt(id) },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      alert('Đã thêm vào giỏ hàng!');
+      toast.success('Đã thêm vào giỏ hàng!');
     } catch (err) {
       console.error('Error adding to cart:', err);
       if (err.response?.data?.message?.includes('đã có trong giỏ hàng')) {
-        alert('Khóa học này đã có trong giỏ hàng của bạn');
+        toast.info('Khóa học này đã có trong giỏ hàng của bạn');
       } else {
-        alert(err.response?.data?.message || 'Lỗi khi thêm vào giỏ hàng');
+        toast.error(err.response?.data?.message || 'Lỗi khi thêm vào giỏ hàng');
       }
     }
   };
@@ -289,46 +292,47 @@ export default function CourseDetail() {
     ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1)
     : 0;
 
+  // Lấy video đầu tiên của khóa học
+  const getFirstVideo = () => {
+    if (course.chapters && course.chapters.length > 0) {
+      const firstChapter = course.chapters[0];
+      if (firstChapter.lessons && firstChapter.lessons.length > 0) {
+        const firstLesson = firstChapter.lessons[0];
+        return firstLesson.videourl || null;
+      }
+    }
+    return null;
+  };
+
+  const firstVideoUrl = getFirstVideo();
+  const isYouTubeVideo = firstVideoUrl && (firstVideoUrl.includes('youtube.com') || firstVideoUrl.includes('youtu.be'));
+
   return (
     <main>
       <section className="container mx-auto px-6 mt-6 grid gap-8 lg:grid-cols-[1fr_360px]">
         {/* Left: Video + details */}
         <div>
           <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-            <div className="relative">
-              {course.thumbnailUrl ? (
-                <img
-                  src={course.thumbnailUrl}
-                  alt={course.coursename}
-                  className="aspect-video w-full object-cover"
-                />
-              ) : (
-                <div className="aspect-video w-full bg-gray-200 flex items-center justify-center">
-                  <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-              )}
-              {/* Video controls overlay */}
-              <div className="absolute inset-x-0 bottom-0 bg-black/60 px-4 pb-3 pt-2 text-white">
-                <div className="flex items-center gap-3">
-                  <button className="grid size-8 place-items-center rounded-full bg-white/90 text-gray-900 hover:bg-white transition-colors cursor-pointer">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </button>
-                  <div className="h-2 w-full rounded-full bg-white/30">
-                    <div className="h-full w-1/5 rounded-full bg-white" />
-                  </div>
-                  <span className="text-xs">0:00 / 0:00</span>
-                  <div className="ml-auto flex items-center gap-3 opacity-80">
-                    <span className="text-xs">HD</span>
-                    <span className="text-xs">1x</span>
-                  </div>
-                </div>
+            {firstVideoUrl ? (
+              <VideoPlayer
+                videoUrl={firstVideoUrl}
+                title={course.coursename}
+                isYouTube={isYouTubeVideo}
+              />
+            ) : course.thumbnailUrl ? (
+              <img
+                src={course.thumbnailUrl}
+                alt={course.coursename}
+                className="aspect-video w-full object-cover"
+              />
+            ) : (
+              <div className="aspect-video w-full bg-gray-200 flex items-center justify-center">
+                <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Title + meta */}
@@ -339,12 +343,22 @@ export default function CourseDetail() {
                 <div className="flex items-center gap-2">
                   <span className="grid size-6 place-items-center rounded-full bg-emerald-100 text-emerald-700">
                     {course.teacher.profilepicture ? (
-                      <img src={course.teacher.profilepicture} alt={course.teacher.fullname} className="w-full h-full rounded-full object-cover" />
+                      <img src={course.teacher.profilepicture} alt={course.teacher.fullname || 'Giảng viên'} className="w-full h-full rounded-full object-cover" />
                     ) : (
                       <span>👤</span>
                     )}
                   </span>
-                  <span className="font-medium text-gray-900">{course.teacher.fullname || 'Giảng viên'}</span>
+                  <span className="font-medium text-gray-900">
+                    {course.teacher.fullname || course.teacher.username || 'Giảng viên'}
+                  </span>
+                </div>
+              )}
+              {!course.teacher && (
+                <div className="flex items-center gap-2">
+                  <span className="grid size-6 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+                    <span>👤</span>
+                  </span>
+                  <span className="font-medium text-gray-900">Giảng viên</span>
                 </div>
               )}
               {course.category && (

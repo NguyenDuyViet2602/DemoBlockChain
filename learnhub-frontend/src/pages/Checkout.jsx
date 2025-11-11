@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { FaCreditCard, FaLock, FaSpinner } from 'react-icons/fa';
+import { useToast } from '../contexts/ToastContext';
 
 const Checkout = () => {
+  const toast = useToast();
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -40,7 +42,7 @@ const Checkout = () => {
 
   const handlePayment = async () => {
     if (cartItems.length === 0) {
-      alert('Giỏ hàng của bạn đang trống');
+      toast.warning('Giỏ hàng của bạn đang trống');
       navigate('/cart');
       return;
     }

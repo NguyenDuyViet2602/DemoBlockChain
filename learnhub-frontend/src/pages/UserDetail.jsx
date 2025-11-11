@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useToast } from "../contexts/ToastContext";
 
 const UserDetail = () => {
+    const toast = useToast();
     const [activeTab, setActiveTab] = useState("Thông tin cá nhân");
     const [userData, setUserData] = useState({
         userId: null,
@@ -79,7 +81,7 @@ const UserDetail = () => {
             const token = localStorage.getItem("token");
             if (!token) {
                 console.log("No token available. User data:", userData);
-                alert("Please log in to save your changes.");
+                toast.warning("Vui lòng đăng nhập để lưu thay đổi.");
                 return;
             }
 
@@ -148,12 +150,12 @@ const UserDetail = () => {
                 window.dispatchEvent(new Event('userUpdate'));
             }
             
-            alert("Cập nhật thông tin thành công!");
+            toast.success("Cập nhật thông tin thành công!");
             setAvatarFile(null); // Reset avatar file sau khi upload
         } catch (err) {
             const errorMessage =
                 err instanceof Error ? err.message : "Failed to save user details";
-            alert("Lỗi: " + errorMessage);
+            toast.error("Lỗi: " + errorMessage);
             console.error(errorMessage);
         } finally {
             setIsSaving(false);

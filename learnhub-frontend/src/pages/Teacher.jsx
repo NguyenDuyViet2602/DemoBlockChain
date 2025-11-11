@@ -1,6 +1,8 @@
 // src/pages/Teacher.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useToast } from '../contexts/ToastContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import {
   FaHome,
   FaBook,
@@ -22,6 +24,8 @@ import {
 } from 'react-icons/fa';
 
 const Teacher = () => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [stats, setStats] = useState(null);
@@ -77,7 +81,7 @@ const Teacher = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
       <div
-        className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white border-r transition-all duration-300 z-30 ${
+        className={`fixed top-16 bottom-0 left-0 bg-white border-r transition-all duration-300 z-10 overflow-y-auto ${
           sidebarOpen ? 'w-64' : 'w-0 overflow-hidden'
         }`}
       >
@@ -223,6 +227,7 @@ const DashboardStats = ({ stats, loading }) => {
 
 // My Courses Component
 const MyCourses = ({ onRefresh }) => {
+  const toast = useToast();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -293,12 +298,12 @@ const MyCourses = ({ onRefresh }) => {
     if (file) {
       // Kiểm tra loại file
       if (!file.type.startsWith('image/')) {
-        alert('Vui lòng chọn file ảnh!');
+        toast.warning('Vui lòng chọn file ảnh!');
         return;
       }
       // Kiểm tra kích thước (5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('File ảnh không được vượt quá 5MB!');
+        toast.warning('File ảnh không được vượt quá 5MB!');
         return;
       }
       setSelectedImage(file);
@@ -361,7 +366,7 @@ const MyCourses = ({ onRefresh }) => {
                 },
               }
             );
-            alert('Tạo khóa học thành công! Đang chờ admin duyệt.');
+            toast.success('Tạo khóa học thành công! Đang chờ admin duyệt.');
             setShowModal(false);
             setEditingCourse(null);
             setSelectedImage(null);
@@ -376,14 +381,15 @@ const MyCourses = ({ onRefresh }) => {
               duration: '',
               imageurl: '',
             });
-            fetchCourses();
+            // Refresh data ngay lập tức
+            await fetchCourses();
             if (onRefresh) onRefresh();
             setUploadingImage(false);
             return;
           }
         } catch (uploadError) {
           setUploadingImage(false);
-          alert('Lỗi upload ảnh: ' + (uploadError.response?.data?.message || uploadError.message));
+          toast.error('Lỗi upload ảnh: ' + (uploadError.response?.data?.message || uploadError.message));
           return;
         }
         setUploadingImage(false);
@@ -398,12 +404,12 @@ const MyCourses = ({ onRefresh }) => {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
-        alert('Cập nhật khóa học thành công!');
+        toast.success('Cập nhật khóa học thành công!');
       } else {
         await axios.post('http://localhost:8080/api/v1/courses', formData, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        alert('Tạo khóa học thành công! Đang chờ admin duyệt.');
+        toast.success('Tạo khóa học thành công! Đang chờ admin duyệt.');
       }
       
       setShowModal(false);
@@ -420,11 +426,12 @@ const MyCourses = ({ onRefresh }) => {
         duration: '',
         imageurl: '',
       });
-      fetchCourses();
+      // Refresh data ngay lập tức
+      await fetchCourses();
       if (onRefresh) onRefresh();
     } catch (error) {
       setUploadingImage(false);
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -446,7 +453,13 @@ const MyCourses = ({ onRefresh }) => {
   };
 
   const handleDelete = async (courseId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa khóa học này?')) return;
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa khóa học này?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -455,9 +468,9 @@ const MyCourses = ({ onRefresh }) => {
       });
       fetchCourses();
       if (onRefresh) onRefresh();
-      alert('Xóa khóa học thành công!');
+      toast.success('Xóa khóa học thành công!');
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -620,8 +633,9 @@ const MyCourses = ({ onRefresh }) => {
 
       {/* Modal Create/Edit Course */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0" onClick={() => setShowModal(false)} />
+          <div className="relative bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold mb-4">
               {editingCourse ? 'Sửa khóa học' : 'Tạo khóa học mới'}
             </h2>
@@ -951,7 +965,7 @@ const PendingSubmissions = ({ onRefresh }) => {
 
   const handleGrade = async () => {
     if (!gradeData.grade || gradeData.grade < 0 || gradeData.grade > 10) {
-      alert('Vui lòng nhập điểm từ 0 đến 10');
+      toast.warning('Vui lòng nhập điểm từ 0 đến 10');
       return;
     }
 
@@ -964,14 +978,14 @@ const PendingSubmissions = ({ onRefresh }) => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      alert('Chấm điểm thành công!');
+      toast.success('Chấm điểm thành công!');
       setShowGradeModal(false);
       setSelectedSubmission(null);
       setGradeData({ grade: '', feedback: '' });
       fetchSubmissions();
       if (onRefresh) onRefresh();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -1068,8 +1082,9 @@ const PendingSubmissions = ({ onRefresh }) => {
 
       {/* Grade Modal */}
       {showGradeModal && selectedSubmission && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0" onClick={() => setShowGradeModal(false)} />
+          <div className="relative bg-white rounded-lg p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold mb-4">Chấm điểm bài tập</h2>
             <div className="space-y-4">
               <div>
@@ -1164,7 +1179,7 @@ const Analytics = () => {
       setAnalytics(response.data.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }
@@ -1276,6 +1291,8 @@ const Analytics = () => {
 
 // Course Content Management Component
 const CourseContentManagement = () => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [courses, setCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [chapters, setChapters] = useState([]);
@@ -1357,7 +1374,7 @@ const CourseContentManagement = () => {
       setLessons((prev) => ({ ...prev, ...lessonsMap }));
     } catch (error) {
       console.error('Error fetching chapters:', error);
-      alert('Lỗi khi tải danh sách chương: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi khi tải danh sách chương: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }
@@ -1429,12 +1446,13 @@ const CourseContentManagement = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      alert('Tạo chương thành công!');
+      toast.success('Tạo chương thành công!');
       setShowChapterModal(false);
       setChapterForm({ title: '', description: '', sortorder: 0 });
-      fetchChapters();
+      // Refresh data ngay lập tức
+      await fetchChapters();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -1448,28 +1466,35 @@ const CourseContentManagement = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      alert('Cập nhật chương thành công!');
+      toast.success('Cập nhật chương thành công!');
       setShowChapterModal(false);
       setEditingChapter(null);
       setChapterForm({ title: '', description: '', sortorder: 0 });
-      fetchChapters();
+      // Refresh data ngay lập tức
+      await fetchChapters();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const handleDeleteChapter = async (chapterId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa chương này? Tất cả bài học trong chương sẽ bị xóa.')) return;
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa chương này? Tất cả bài học trong chương sẽ bị xóa.',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
       await axios.delete(`http://localhost:8080/api/v1/chapters/${chapterId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      alert('Xóa chương thành công!');
+      toast.success('Xóa chương thành công!');
       fetchChapters();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -1478,12 +1503,12 @@ const CourseContentManagement = () => {
     if (file) {
       // Kiểm tra loại file
       if (!file.type.startsWith('video/')) {
-        alert('Vui lòng chọn file video!');
+        toast.warning('Vui lòng chọn file video!');
         return;
       }
       // Kiểm tra kích thước (500MB)
       if (file.size > 500 * 1024 * 1024) {
-        alert('File video không được vượt quá 500MB!');
+        toast.warning('File video không được vượt quá 500MB!');
         return;
       }
       setSelectedVideo(file);
@@ -1526,10 +1551,10 @@ const CourseContentManagement = () => {
               },
             }
           );
-          alert('Tạo bài học và upload video thành công!');
+          toast.success('Tạo bài học và upload video thành công!');
         } catch (uploadError) {
           setUploadingVideo(false);
-          alert('Tạo bài học thành công nhưng upload video thất bại: ' + (uploadError.response?.data?.message || uploadError.message));
+          toast.warning('Tạo bài học thành công nhưng upload video thất bại: ' + (uploadError.response?.data?.message || uploadError.message));
         }
         setUploadingVideo(false);
       } else {
@@ -1546,7 +1571,7 @@ const CourseContentManagement = () => {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
-        alert('Tạo bài học thành công!');
+        toast.success('Tạo bài học thành công!');
       }
       
       setShowLessonModal(false);
@@ -1557,7 +1582,7 @@ const CourseContentManagement = () => {
       fetchLessons(parseInt(selectedChapterId));
     } catch (error) {
       setUploadingVideo(false);
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -1586,7 +1611,7 @@ const CourseContentManagement = () => {
           lessonForm.videourl = uploadResponse.data.data.videoUrl;
         } catch (uploadError) {
           setUploadingVideo(false);
-          alert('Lỗi upload video: ' + (uploadError.response?.data?.message || uploadError.message));
+          toast.error('Lỗi upload video: ' + (uploadError.response?.data?.message || uploadError.message));
           return;
         }
         setUploadingVideo(false);
@@ -1603,7 +1628,7 @@ const CourseContentManagement = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      alert('Cập nhật bài học thành công!');
+      toast.success('Cập nhật bài học thành công!');
       setShowLessonModal(false);
       setEditingLesson(null);
       setSelectedVideo(null);
@@ -1612,22 +1637,28 @@ const CourseContentManagement = () => {
       fetchLessons(editingLesson.chapterid);
     } catch (error) {
       setUploadingVideo(false);
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const handleDeleteLesson = async (lessonId, chapterId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bài học này?')) return;
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa bài học này?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
       await axios.delete(`http://localhost:8080/api/v1/lessons/${lessonId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      alert('Xóa bài học thành công!');
+      toast.success('Xóa bài học thành công!');
       fetchLessons(chapterId);
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -1829,8 +1860,9 @@ const CourseContentManagement = () => {
 
       {/* Chapter Modal */}
       {showChapterModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0" onClick={() => setShowChapterModal(false)} />
+          <div className="relative bg-white rounded-lg p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold mb-4">
               {editingChapter ? 'Sửa chương' : 'Thêm chương mới'}
             </h2>
@@ -1896,8 +1928,9 @@ const CourseContentManagement = () => {
 
       {/* Lesson Modal */}
       {showLessonModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0" onClick={() => setShowLessonModal(false)} />
+          <div className="relative bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold mb-4">
               {editingLesson ? 'Sửa bài học' : 'Thêm bài học mới'}
             </h2>
@@ -2036,7 +2069,7 @@ const CourseContentManagement = () => {
             setShowQuizModal(false);
             setSelectedLessonId(null);
           }}
-          onRefresh={() => fetchQuizzes(selectedLessonId)}
+          onRefresh={async () => await fetchQuizzes(selectedLessonId)}
         />
       )}
         </div>
@@ -2045,6 +2078,8 @@ const CourseContentManagement = () => {
 
 // Quiz Management Modal Component
 const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [showQuizForm, setShowQuizForm] = useState(false);
   const [showQuestionForm, setShowQuestionForm] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState(null);
@@ -2074,27 +2109,35 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      alert('Tạo quiz thành công!');
+      toast.success('Tạo quiz thành công!');
       setShowQuizForm(false);
       setQuizForm({ title: '', timelimit: 30, maxattempts: 1, showanswersaftersubmission: false });
-      onRefresh();
+      // Refresh data ngay lập tức
+      await onRefresh();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const handleDeleteQuiz = async (quizId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa quiz này?')) return;
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa quiz này?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
       await axios.delete(`http://localhost:8080/api/v1/quizzes/${quizId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      alert('Xóa quiz thành công!');
-      onRefresh();
+      toast.success('Xóa quiz thành công!');
+      // Refresh data ngay lập tức
+      await onRefresh();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -2116,13 +2159,13 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
   const handleCreateQuestion = async () => {
     if (!selectedQuiz) return;
     if (!questionForm.questiontext || questionForm.options.length < 2) {
-      alert('Vui lòng nhập câu hỏi và ít nhất 2 đáp án');
+      toast.warning('Vui lòng nhập câu hỏi và ít nhất 2 đáp án');
       return;
     }
 
     const hasCorrectAnswer = questionForm.options.some((opt) => opt.iscorrect);
     if (!hasCorrectAnswer) {
-      alert('Vui lòng chọn ít nhất một đáp án đúng');
+      toast.warning('Vui lòng chọn ít nhất một đáp án đúng');
       return;
     }
 
@@ -2135,7 +2178,7 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      alert('Tạo câu hỏi thành công!');
+      toast.success('Tạo câu hỏi thành công!');
       setShowQuestionForm(false);
       setQuestionForm({
         questiontext: '',
@@ -2144,24 +2187,30 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
       });
       fetchQuizDetails(selectedQuiz.quizid);
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const handleDeleteQuestion = async (questionId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa câu hỏi này?')) return;
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa câu hỏi này?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
       await axios.delete(`http://localhost:8080/api/v1/quizzes/questions/${questionId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      alert('Xóa câu hỏi thành công!');
+      toast.success('Xóa câu hỏi thành công!');
       if (selectedQuiz) {
         fetchQuizDetails(selectedQuiz.quizid);
       }
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -2184,8 +2233,9 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="relative bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold">Quản lý Quiz</h2>
           <button
@@ -2322,8 +2372,9 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
 
         {/* Create Quiz Form Modal */}
         {showQuizForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0" onClick={() => setShowQuizForm(false)} />
+            <div className="relative bg-white rounded-lg p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-lg font-bold mb-4">Tạo Quiz mới</h3>
               <form
                 onSubmit={(e) => {
@@ -2396,8 +2447,9 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
 
         {/* Create Question Form Modal */}
         {showQuestionForm && selectedQuiz && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0" onClick={() => setShowQuestionForm(false)} />
+            <div className="relative bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-lg font-bold mb-4">Thêm câu hỏi mới</h3>
               <form
                 onSubmit={(e) => {

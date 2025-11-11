@@ -172,11 +172,20 @@ const approveTeacherRequest = async (requestId) => {
     reviewedat: new Date(),
   });
 
+  // Tạo notification cho user
+  const notificationService = require('./notification.service');
+  await notificationService.createNotification(
+    request.userid,
+    'Chúc mừng! Yêu cầu trở thành giảng viên của bạn đã được duyệt. Bạn có thể bắt đầu tạo khóa học ngay bây giờ.'
+  );
+
   return request;
 };
 
 const rejectTeacherRequest = async (requestId) => {
-  const request = await teacherrequests.findByPk(requestId);
+  const request = await teacherrequests.findByPk(requestId, {
+    include: [{ model: users, as: 'user' }],
+  });
 
   if (!request) {
     throw new Error('Không tìm thấy yêu cầu');
@@ -190,6 +199,13 @@ const rejectTeacherRequest = async (requestId) => {
     status: 'Rejected',
     reviewedat: new Date(),
   });
+
+  // Tạo notification cho user
+  const notificationService = require('./notification.service');
+  await notificationService.createNotification(
+    request.userid,
+    'Rất tiếc, yêu cầu trở thành giảng viên của bạn đã bị từ chối. Vui lòng kiểm tra lại thông tin và nộp đơn lại sau.'
+  );
 
   return request;
 };

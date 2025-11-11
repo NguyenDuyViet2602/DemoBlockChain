@@ -1,17 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { FaTrash, FaShoppingCart } from 'react-icons/fa';
+import { FaTrash, FaShoppingCart, FaStar } from 'react-icons/fa';
+import { useToast } from '../contexts/ToastContext';
 
 const Cart = () => {
+  const toast = useToast();
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [recommendedCourses, setRecommendedCourses] = useState([]);
+  const [loadingRecommended, setLoadingRecommended] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchCartItems();
+    fetchRecommendedCourses();
   }, []);
+
+  useEffect(() => {
+    // Refresh recommended courses when cart items change
+    if (cartItems.length > 0) {
+      fetchRecommendedCourses();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartItems]);
 
   const fetchCartItems = async () => {
     try {
@@ -47,7 +60,34 @@ const Cart = () => {
       setCartItems(prev => prev.filter(item => item.courseid !== courseId));
     } catch (err) {
       console.error('Error removing item:', err);
-      alert('Lỗi khi xóa khóa học khỏi giỏ hàng');
+      toast.error('Lỗi khi xóa khóa học khỏi giỏ hàng');
+    }
+  };
+
+  const fetchRecommendedCourses = async () => {
+    try {
+      setLoadingRecommended(true);
+      const response = await axios.get('http://localhost:8080/api/v1/courses', {
+        params: {
+          page: 1,
+          limit: 8,
+          sortBy: 'createdat',
+          sortOrder: 'DESC',
+        },
+      });
+
+      const allCourses = response.data.data?.courses || [];
+      // Loại trừ các khóa học đã có trong giỏ hàng
+      const cartCourseIds = cartItems.map(item => item.courseid);
+      const filteredCourses = allCourses.filter(
+        course => !cartCourseIds.includes(course.courseid)
+      );
+      
+      setRecommendedCourses(filteredCourses.slice(0, 6));
+    } catch (err) {
+      console.error('Error fetching recommended courses:', err);
+    } finally {
+      setLoadingRecommended(false);
     }
   };
 
@@ -152,6 +192,68 @@ const Cart = () => {
                 >
                   {totalAmount === 0 ? 'Đăng ký miễn phí' : 'Thanh toán'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Recommended Courses Section */}
+        {recommendedCourses.length > 0 && (
+          <div className="mt-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Khóa học gợi ý</h2>
+              <button
+                onClick={() => navigate('/')}
+                className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+              >
+                Xem tất cả →
+              </button>
+            </div>
+            <div className="overflow-x-auto pb-4 -mx-4 px-4">
+              <div className="flex gap-6 min-w-max">
+                {recommendedCourses.map((course) => (
+                  <div
+                    key={course.courseid}
+                    onClick={() => navigate(`/course/${course.courseid}`)}
+                    className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer overflow-hidden group flex-shrink-0 w-64"
+                  >
+                    <div className="relative aspect-video overflow-hidden">
+                      <img
+                        src={course.thumbnailurl || course.imageurl || '/placeholder-course.jpg'}
+                        alt={course.coursename}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      {course.price === 0 && (
+                        <span className="absolute top-2 right-2 bg-emerald-600 text-white text-xs font-semibold px-2 py-1 rounded">
+                          Miễn phí
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-emerald-600 transition-colors">
+                        {course.coursename}
+                      </h3>
+                      {course.teacher && (
+                        <p className="text-sm text-gray-600 mb-2">
+                          {course.teacher.fullname || 'Giảng viên'}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between mt-3">
+                        <span className="text-emerald-600 font-bold text-lg">
+                          {course.price === 0
+                            ? 'Miễn phí'
+                            : `${(course.price || 0).toLocaleString('vi-VN')} đ`}
+                        </span>
+                        {course.averageRating > 0 && (
+                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                            <FaStar className="text-amber-500" />
+                            <span>{parseFloat(course.averageRating).toFixed(1)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

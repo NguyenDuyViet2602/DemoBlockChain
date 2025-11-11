@@ -1,23 +1,30 @@
 // src/components/Header.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { FaUser, FaSignOutAlt, FaShoppingCart, FaHeart, FaBell, FaCog } from 'react-icons/fa';
+import { FaUser, FaSignOutAlt, FaShoppingCart, FaHeart, FaBell, FaCog, FaTrash } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import LoginPopup from './LoginPopup';
 import SignupPopup from './SignupPopup';
 import NotificationBell from './NotificationBell';
+import { useToast } from '../contexts/ToastContext';
 
 function Header() {
+  const toast = useToast();
   const [openBrowse, setOpenBrowse] = useState(false);
   const [openAccount, setOpenAccount] = useState(false);
+  const [openCart, setOpenCart] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
   const [user, setUser] = useState(() => {
     const userStr = localStorage.getItem('user');
     return userStr ? JSON.parse(userStr) : null;
   });
+  const [cartItems, setCartItems] = useState([]);
+  const [loadingCart, setLoadingCart] = useState(false);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
   const [showSignupPopup, setShowSignupPopup] = useState(false);
   const browseRef = useRef(null);
   const accountRef = useRef(null);
+  const cartRef = useRef(null);
   const navigate = useNavigate();
 
   // Listen for storage changes and custom events (when login/logout happens)
@@ -52,10 +59,55 @@ function Header() {
     const onClick = (e) => {
       if (browseRef.current && !browseRef.current.contains(e.target)) setOpenBrowse(false);
       if (accountRef.current && !accountRef.current.contains(e.target)) setOpenAccount(false);
+      if (cartRef.current && !cartRef.current.contains(e.target)) setOpenCart(false);
     };
     document.addEventListener('click', onClick);
     return () => document.removeEventListener('click', onClick);
   }, []);
+
+  // Fetch cart items when user is logged in
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchCartItems();
+    } else {
+      setCartItems([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  const fetchCartItems = async () => {
+    if (!isLoggedIn) return;
+    try {
+      setLoadingCart(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:8080/api/v1/cart', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCartItems(response.data.data || []);
+    } catch (err) {
+      console.error('Error fetching cart:', err);
+      // Don't show error if user is not logged in
+      if (err.response?.status !== 401) {
+        setCartItems([]);
+      }
+    } finally {
+      setLoadingCart(false);
+    }
+  };
+
+  const handleRemoveFromCart = async (courseId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`http://localhost:8080/api/v1/cart/${courseId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCartItems(prev => prev.filter(item => item.courseid !== courseId));
+      toast.success('Đã xóa khóa học khỏi giỏ hàng');
+    } catch (err) {
+      console.error('Error removing from cart:', err);
+      toast.error('Lỗi khi xóa khóa học khỏi giỏ hàng');
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -69,8 +121,7 @@ function Header() {
   };
 
   const handleBecomeInstructor = () => {
-    // TODO: Implement become instructor functionality
-    console.log('Become Instructor clicked');
+    navigate('/become-instructor');
     setOpenAccount(false);
   };
 
@@ -123,10 +174,105 @@ function Header() {
           <div className="hidden sm:block">
             <SearchInput className="w-[280px] md:w-[360px]" />
           </div>
-          <IconButton ariaLabel="Giỏ hàng">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="size-5"><path d="M6 6h15l-1.5 9h-12z" /><path d="M6 6l-2 0" /><circle cx="9" cy="21" r="1" /><circle cx="18" cy="21" r="1" /></svg>
-          </IconButton>
-          {/* Hiển thị "Become Instructor" nếu không phải Teacher */}
+          <div ref={cartRef} className="relative">
+            <button
+              onClick={() => {
+                if (isLoggedIn) {
+                  setOpenCart(!openCart);
+                  fetchCartItems();
+                } else {
+                  setShowLoginPopup(true);
+                }
+              }}
+              className="relative p-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+              ariaLabel="Giỏ hàng"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="size-5"><path d="M6 6h15l-1.5 9h-12z" /><path d="M6 6l-2 0" /><circle cx="9" cy="21" r="1" /><circle cx="18" cy="21" r="1" /></svg>
+              {isLoggedIn && cartItems.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-emerald-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  {cartItems.length}
+                </span>
+              )}
+            </button>
+            {openCart && isLoggedIn && (
+              <div className="absolute right-0 mt-2 w-80 rounded-lg border bg-white shadow-lg z-50 max-h-96 overflow-hidden flex flex-col">
+                <div className="p-4 border-b">
+                  <h3 className="font-semibold text-gray-900">Giỏ hàng ({cartItems.length})</h3>
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  {loadingCart ? (
+                    <div className="p-4 text-center text-gray-500">Đang tải...</div>
+                  ) : cartItems.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      <FaShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                      <p>Giỏ hàng trống</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {cartItems.map((item) => (
+                        <div
+                          key={item.cartid || item.courseid}
+                          className="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors"
+                        >
+                          <img
+                            src={item.course?.thumbnailurl || item.course?.imageurl || '/placeholder-course.jpg'}
+                            alt={item.course?.coursename}
+                            className="w-16 h-16 object-cover rounded"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm text-gray-900 truncate">
+                              {item.course?.coursename || 'Khóa học'}
+                            </h4>
+                            <p className="text-emerald-600 font-semibold text-sm mt-1">
+                              {item.course?.price === 0 
+                                ? 'Miễn phí' 
+                                : `${(item.course?.price || 0).toLocaleString('vi-VN')} đ`}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleRemoveFromCart(item.courseid)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                            title="Xóa khỏi giỏ hàng"
+                          >
+                            <FaTrash className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {cartItems.length > 0 && (
+                  <div className="p-4 border-t bg-gray-50">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-semibold text-gray-900">Tổng cộng:</span>
+                      <span className="text-emerald-600 font-bold text-lg">
+                        {cartItems.reduce((sum, item) => sum + (item.course?.price || 0), 0).toLocaleString('vi-VN')} đ
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigate('/cart');
+                        setOpenCart(false);
+                      }}
+                      className="w-full bg-emerald-600 text-white py-2 rounded-lg font-semibold hover:bg-emerald-700 transition-colors"
+                    >
+                      Xem giỏ hàng
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {/* Hiển thị "Giảng Viên" nếu là Teacher */}
+          {isLoggedIn && user && user.role === 'Teacher' && (
+            <button
+              onClick={() => navigate('/teacher')}
+              className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-full transition-colors cursor-pointer"
+            >
+              Giảng Viên
+            </button>
+          )}
+          {/* Hiển thị "Trở thành Giảng viên" nếu không phải Teacher */}
           {isLoggedIn && user && user.role !== 'Teacher' && (
             <button
               onClick={handleBecomeInstructor}
@@ -227,7 +373,7 @@ function Header() {
                         className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors cursor-pointer"
                       >
                         <FaHeart className="text-gray-400" />
-                        <span>Wishlist</span>
+                        <span>Danh sách yêu thích</span>
                       </button>
                       <button
                         onClick={() => {
@@ -247,7 +393,7 @@ function Header() {
                         className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors cursor-pointer"
                       >
                         <FaCog className="text-gray-400" />
-                        <span>Account Settings</span>
+                        <span>Cài đặt tài khoản</span>
                       </button>
                       <div className="border-t my-1"></div>
                       <button
@@ -255,7 +401,7 @@ function Header() {
                         className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 text-red-600 transition-colors cursor-pointer"
                       >
                         <FaSignOutAlt className="text-red-400" />
-                        <span>Logout</span>
+                        <span>Đăng xuất</span>
                       </button>
                     </div>
                   </>

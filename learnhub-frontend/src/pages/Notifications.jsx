@@ -3,8 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { FaBell, FaCheck, FaTrash, FaCheckCircle } from 'react-icons/fa';
+import { useToast } from '../contexts/ToastContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 
 const Notifications = () => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -86,7 +90,7 @@ const Notifications = () => {
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (err) {
       console.error('Error marking as read:', err);
-      alert('Lỗi khi đánh dấu đã đọc');
+      toast.error('Lỗi khi đánh dấu đã đọc');
     }
   };
 
@@ -101,17 +105,22 @@ const Notifications = () => {
 
       setNotifications(prev => prev.map(notif => ({ ...notif, isread: true })));
       setUnreadCount(0);
-      alert('Đã đánh dấu tất cả thông báo là đã đọc');
+      toast.success('Đã đánh dấu tất cả thông báo là đã đọc');
     } catch (err) {
       console.error('Error marking all as read:', err);
-      alert('Lỗi khi đánh dấu tất cả đã đọc');
+      toast.error('Lỗi khi đánh dấu tất cả đã đọc');
     }
   };
 
   const handleDelete = async (notificationId) => {
-    if (!window.confirm('Bạn có chắc muốn xóa thông báo này?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc muốn xóa thông báo này?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -126,14 +135,19 @@ const Notifications = () => {
       }
     } catch (err) {
       console.error('Error deleting notification:', err);
-      alert('Lỗi khi xóa thông báo');
+      toast.error('Lỗi khi xóa thông báo');
     }
   };
 
   const handleDeleteAllRead = async () => {
-    if (!window.confirm('Bạn có chắc muốn xóa tất cả thông báo đã đọc?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc muốn xóa tất cả thông báo đã đọc?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -145,10 +159,10 @@ const Notifications = () => {
       if (activeTab === 'read' || activeTab === 'all') {
         setNotifications(prev => prev.filter(notif => !notif.isread));
       }
-      alert('Đã xóa tất cả thông báo đã đọc');
+      toast.success('Đã xóa tất cả thông báo đã đọc');
     } catch (err) {
       console.error('Error deleting all read:', err);
-      alert('Lỗi khi xóa thông báo');
+      toast.error('Lỗi khi xóa thông báo');
     }
   };
 

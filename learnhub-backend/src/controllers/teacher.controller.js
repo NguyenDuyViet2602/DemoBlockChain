@@ -1,5 +1,68 @@
 // src/controllers/teacher.controller.js
 const teacherService = require('../services/teacher.service');
+const TeacherRequestService = require('../services/teacher-request.service');
+const db = require('../models');
+
+// Teacher Request - Apply to become teacher (từ nhánh restore-profile-update)
+exports.apply = async (req, res, next) => {
+  try {
+    console.log('Decoded user from token:', req.user); // Debug userId
+    const userId = req.user.id;
+    const { requestdetails, experience, certificateurl, categoryname } = req.body;
+
+    // Validate dữ liệu
+    if (!userId || !requestdetails || !experience || !categoryname) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const application = await TeacherRequestService.apply(userId, {
+      requestdetails, // Giữ nguyên như text
+      experience,
+      specialization: categoryname, // Lưu categoryname vào specialization
+      certificateurl,
+    });
+
+    res.status(201).json({
+      message: 'Application submitted successfully',
+      data: application,
+    });
+  } catch (error) {
+    console.error('Error in apply:', error.message);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+// Teacher Request - Get request status by user (từ nhánh restore-profile-update)
+exports.getRequestsByUser = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const request = await db.teacherrequests.findOne({
+      where: { userid: userId },
+      order: [['submittedat', 'DESC']], // Lấy yêu cầu mới nhất
+    });
+
+    if (!request) {
+      return res.status(404).json({ error: 'No application found' });
+    }
+
+    if (request.status === 'Pending') {
+      return res.status(200).json({
+        status: 'Pending',
+        message: 'Your application is under review. Please check back later.',
+        email: req.user.email || 'your-email@example.com', // Giả định email từ token
+      });
+    } else {
+      return res.status(200).json({
+        status: request.status,
+        message: `Your application is ${request.status.toLowerCase()}.`,
+      });
+    }
+  } catch (error) {
+    console.error('Error in getStatus:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
 
 // Dashboard Stats
 exports.getDashboardStats = async (req, res, next) => {

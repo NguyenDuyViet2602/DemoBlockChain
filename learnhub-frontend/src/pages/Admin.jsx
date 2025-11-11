@@ -12,8 +12,12 @@ import {
   FaBars,
   FaTimes,
 } from 'react-icons/fa';
+import { useToast } from '../contexts/ToastContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 
 const Admin = () => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [stats, setStats] = useState(null);
@@ -72,7 +76,7 @@ const Admin = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
       <div
-        className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white border-r transition-all duration-300 z-30 ${
+        className={`fixed top-16 bottom-0 left-0 bg-white border-r transition-all duration-300 z-10 overflow-y-auto ${
           sidebarOpen ? 'w-64' : 'w-0 overflow-hidden'
         }`}
       >
@@ -218,6 +222,8 @@ const DashboardStats = ({ stats, loading }) => {
 
 // User Management Component
 const UserManagement = () => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -264,25 +270,35 @@ const UserManagement = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      fetchUsers();
-      alert('Cập nhật role thành công!');
+      toast.success('Cập nhật role thành công!');
+      // Refresh data ngay lập tức
+      await fetchUsers();
     } catch (error) {
-      alert('Lỗi khi cập nhật role: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message || 'Lỗi không xác định';
+      toast.error('Lỗi khi cập nhật role: ' + (typeof errorMsg === 'string' ? errorMsg : String(errorMsg)));
     }
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa người dùng này?')) return;
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa người dùng này?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
       await axios.delete(`http://localhost:8080/api/v1/admin/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchUsers();
-      alert('Xóa người dùng thành công!');
+      toast.success('Xóa người dùng thành công!');
+      // Refresh data ngay lập tức
+      await fetchUsers();
     } catch (error) {
-      alert('Lỗi khi xóa người dùng: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message || 'Lỗi không xác định';
+      toast.error('Lỗi khi xóa người dùng: ' + (typeof errorMsg === 'string' ? errorMsg : String(errorMsg)));
     }
   };
 
@@ -409,6 +425,8 @@ const UserManagement = () => {
 
 // Teacher Request Management Component
 const TeacherRequestManagement = () => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -454,15 +472,24 @@ const TeacherRequestManagement = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      fetchRequests();
-      alert('Duyệt yêu cầu thành công!');
+      toast.success('Duyệt yêu cầu thành công!');
+      // Refresh data ngay lập tức
+      await fetchRequests();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message || 'Lỗi không xác định';
+      toast.error('Lỗi: ' + (typeof errorMsg === 'string' ? errorMsg : String(errorMsg)));
     }
   };
 
   const handleReject = async (requestId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn từ chối yêu cầu này?')) return;
+    const confirmed = await confirm({
+      title: 'Xác nhận từ chối',
+      message: 'Bạn có chắc chắn muốn từ chối yêu cầu này?',
+      confirmText: 'Từ chối',
+      cancelText: 'Hủy',
+      type: 'warning',
+    });
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -473,10 +500,12 @@ const TeacherRequestManagement = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      fetchRequests();
-      alert('Từ chối yêu cầu thành công!');
+      toast.success('Từ chối yêu cầu thành công!');
+      // Refresh data ngay lập tức
+      await fetchRequests();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message || 'Lỗi không xác định';
+      toast.error('Lỗi: ' + (typeof errorMsg === 'string' ? errorMsg : String(errorMsg)));
     }
   };
 
@@ -610,6 +639,8 @@ const TeacherRequestManagement = () => {
 
 // Course Management Component
 const CourseManagement = () => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -656,25 +687,35 @@ const CourseManagement = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      fetchCourses();
-      alert('Cập nhật trạng thái thành công!');
+      toast.success('Cập nhật trạng thái thành công!');
+      // Refresh data ngay lập tức
+      await fetchCourses();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message || 'Lỗi không xác định';
+      toast.error('Lỗi: ' + (typeof errorMsg === 'string' ? errorMsg : String(errorMsg)));
     }
   };
 
   const handleDelete = async (courseId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa khóa học này?')) return;
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa khóa học này?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
       await axios.delete(`http://localhost:8080/api/v1/admin/courses/${courseId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchCourses();
-      alert('Xóa khóa học thành công!');
+      toast.success('Xóa khóa học thành công!');
+      // Refresh data ngay lập tức
+      await fetchCourses();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message || 'Lỗi không xác định';
+      toast.error('Lỗi: ' + (typeof errorMsg === 'string' ? errorMsg : String(errorMsg)));
     }
   };
 
@@ -812,6 +853,8 @@ const CourseManagement = () => {
 
 // Order Management Component
 const OrderManagement = () => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -857,10 +900,12 @@ const OrderManagement = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      fetchOrders();
-      alert('Cập nhật trạng thái thành công!');
+      toast.success('Cập nhật trạng thái thành công!');
+      // Refresh data ngay lập tức
+      await fetchOrders();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message || 'Lỗi không xác định';
+      toast.error('Lỗi: ' + (typeof errorMsg === 'string' ? errorMsg : String(errorMsg)));
     }
   };
 
@@ -979,6 +1024,8 @@ const OrderManagement = () => {
 
 // Category Management Component
 const CategoryManagement = () => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -1016,19 +1063,22 @@ const CategoryManagement = () => {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
-        alert('Cập nhật danh mục thành công!');
+        toast.success('Cập nhật danh mục thành công!');
       } else {
         await axios.post('http://localhost:8080/api/v1/admin/categories', formData, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        alert('Tạo danh mục thành công!');
+        toast.success('Tạo danh mục thành công!');
       }
+      // Đóng modal và reset form
       setShowModal(false);
       setEditingCategory(null);
       setFormData({ categoryname: '', description: '' });
-      fetchCategories();
+      // Refresh data ngay lập tức
+      await fetchCategories();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message || 'Lỗi không xác định';
+      toast.error('Lỗi: ' + (typeof errorMsg === 'string' ? errorMsg : String(errorMsg)));
     }
   };
 
@@ -1042,17 +1092,25 @@ const CategoryManagement = () => {
   };
 
   const handleDelete = async (categoryId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa danh mục này?')) return;
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa danh mục này?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
       await axios.delete(`http://localhost:8080/api/v1/admin/categories/${categoryId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchCategories();
-      alert('Xóa danh mục thành công!');
+      toast.success('Xóa danh mục thành công!');
+      // Refresh data ngay lập tức
+      await fetchCategories();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message || 'Lỗi không xác định';
+      toast.error('Lỗi: ' + (typeof errorMsg === 'string' ? errorMsg : String(errorMsg)));
     }
   };
 
@@ -1125,8 +1183,9 @@ const CategoryManagement = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0" onClick={() => setShowModal(false)} />
+          <div className="relative bg-white rounded-lg p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold mb-4">
               {editingCategory ? 'Sửa danh mục' : 'Thêm danh mục'}
             </h2>
@@ -1179,6 +1238,8 @@ const CategoryManagement = () => {
 
 // Review Management Component
 const ReviewManagement = () => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -1208,17 +1269,25 @@ const ReviewManagement = () => {
   };
 
   const handleDelete = async (reviewId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa đánh giá này?')) return;
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa đánh giá này?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
       await axios.delete(`http://localhost:8080/api/v1/admin/reviews/${reviewId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchReviews();
-      alert('Xóa đánh giá thành công!');
+      toast.success('Xóa đánh giá thành công!');
+      // Refresh data ngay lập tức
+      await fetchReviews();
     } catch (error) {
-      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message || 'Lỗi không xác định';
+      toast.error('Lỗi: ' + (typeof errorMsg === 'string' ? errorMsg : String(errorMsg)));
     }
   };
 

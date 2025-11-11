@@ -15,6 +15,9 @@ import Notifications from './pages/Notifications';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import PaymentResult from './pages/PaymentResult';
+import BecomeInstructor from './pages/BecomeInstructor';
+import InstructorApplication from './pages/InstructorApplication';
+import PendingApplication from './pages/PendingApplication';
 import withAuthorization from './hoc/withAuthorization';
 
 const ProtectedProfile = withAuthorization(['Student', 'Teacher', 'Admin'])(Profile);
@@ -46,6 +49,10 @@ function App() {
             <Route path="/cart" element={<ProtectedCart />} />
             <Route path="/checkout" element={<ProtectedCheckout />} />
             <Route path="/payment/result" element={<PaymentResult />} />
+            <Route path="/become-instructor" element={<BecomeInstructor />} />
+            <Route path="/teacher-requests" element={<BecomeInstructor />} />
+            <Route path="/apply" element={<InstructorApplication />} />
+            <Route path="/pending-application" element={<PendingApplication />} />
           </Routes>
         </div>
         <Footer />

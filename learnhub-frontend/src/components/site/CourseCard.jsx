@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import RatingStars from './RatingStars';
+import { useToast } from '../../contexts/ToastContext';
 
 export default function CourseCard({ course, onFavoriteToggle }) {
   const navigate = useNavigate();
+  const toast = useToast();
   const courseId = course.courseid || course.id;
   const hasLink = !!courseId;
   const [isFavorite, setIsFavorite] = useState(false);
@@ -47,7 +49,7 @@ export default function CourseCard({ course, onFavoriteToggle }) {
     e.stopPropagation(); // Prevent card click
     
     if (!isLoggedIn) {
-      alert('Vui lòng đăng nhập để thêm vào yêu thích');
+      toast.warning('Vui lòng đăng nhập để thêm vào yêu thích');
       return;
     }
 
@@ -78,7 +80,7 @@ export default function CourseCard({ course, onFavoriteToggle }) {
       }
     } catch (err) {
       console.error('Error toggling favorite:', err);
-      alert(err.response?.data?.message || 'Lỗi khi cập nhật yêu thích');
+      toast.error(err.response?.data?.message || 'Lỗi khi cập nhật yêu thích');
     }
   };
 

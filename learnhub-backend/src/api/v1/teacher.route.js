@@ -5,7 +5,11 @@ const teacherController = require('../../controllers/teacher.controller');
 const authMiddleware = require('../../middlewares/auth.middleware');
 const roleMiddleware = require('../../middlewares/role.middleware');
 
-// Tất cả routes đều yêu cầu authentication và teacher role
+// Teacher request routes (cho Student muốn trở thành Teacher - không cần role Teacher)
+router.post('/apply', authMiddleware, teacherController.apply);
+router.get('/requests', authMiddleware, teacherController.getRequestsByUser);
+
+// Tất cả routes dưới đây yêu cầu authentication và teacher role
 router.use(authMiddleware);
 router.use(roleMiddleware(['Teacher', 'Admin']));
 

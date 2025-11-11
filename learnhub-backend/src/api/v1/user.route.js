@@ -6,6 +6,7 @@ const uploadImage = require('../../middlewares/upload.middleware');
 
 // GET /api/v1/users?page=1&limit=5 (public)
 router.get('/', userController.getAllUsers);
+router.get('/users', userController.getAllUsers); // Alias để hỗ trợ /api/v1/users
 
 // GET /api/v1/user - Lấy thông tin user hiện tại (cần auth)
 router.get('/user', authMiddleware, userController.getCurrentUser);

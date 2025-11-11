@@ -141,15 +141,17 @@ function HomePage() {
         const resUsers = await axios.get('http://localhost:8080/api/v1/users', {
           params: { role: 'Teacher', limit: 4 },
         });
-        const users = resUsers.data?.data?.users || resUsers.data?.data || [];
+        // Response format: { message, data: [users array], pagination }
+        const users = resUsers.data?.data || [];
         const mapped = users.slice(0, 4).map((u) => ({
           name: u.fullname || u.name || u.username || 'Giảng viên',
           role: 'Giảng viên',
-          image: u.avatarUrl || u.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1200&auto=format&fit=crop',
+          image: u.profilepicture || u.avatarUrl || u.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1200&auto=format&fit=crop',
         }));
         if (mapped.length) setBackendInstructors(mapped);
       } catch (e) {
         // fallback: giữ tĩnh
+        console.error('Error fetching instructors:', e);
       }
     };
     fetchInstructors();

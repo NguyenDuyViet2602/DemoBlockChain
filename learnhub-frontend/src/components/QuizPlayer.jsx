@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaClock } from 'react-icons/fa';
+import { useToast } from '../contexts/ToastContext';
 
 const QuizPlayer = ({ quizId, lessonId, onBack }) => {
+  const toast = useToast();
   const [quiz, setQuiz] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -62,7 +64,7 @@ const QuizPlayer = ({ quizId, lessonId, onBack }) => {
       }
     } catch (err) {
       console.error('Error starting quiz:', err);
-      alert('Lỗi: ' + (err.response?.data?.message || err.message));
+      toast.error('Lỗi: ' + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
     }
@@ -86,7 +88,7 @@ const QuizPlayer = ({ quizId, lessonId, onBack }) => {
     }));
 
     if (answersArray.length === 0) {
-      alert('Vui lòng chọn ít nhất một câu trả lời');
+      toast.warning('Vui lòng chọn ít nhất một câu trả lời');
       return;
     }
 
@@ -107,7 +109,7 @@ const QuizPlayer = ({ quizId, lessonId, onBack }) => {
       }
     } catch (err) {
       console.error('Error submitting quiz:', err);
-      alert('Lỗi: ' + (err.response?.data?.message || err.message));
+      toast.error('Lỗi: ' + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
     }
