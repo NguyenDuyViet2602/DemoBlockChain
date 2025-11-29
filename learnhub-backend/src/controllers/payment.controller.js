@@ -1,5 +1,7 @@
 const vnpayService = require('../services/vnpay.service');
 const orderService = require('../services/order.service');
+const lhtPaymentService = require('../services/lht-payment.service');
+const lhtDiscountService = require('../services/lht-discount.service');
 
 /**
  * [POST] /api/v1/payment/create-payment-url
@@ -8,10 +10,10 @@ const orderService = require('../services/order.service');
 const createPaymentUrl = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { promotionCode } = req.body;
+    const { promotionCode, lhtDiscountAmount } = req.body; // lhtDiscountAmount: số LHT muốn dùng để giảm giá
 
-    // Tạo order với status Pending
-    const order = await orderService.createOrderFromCart(userId, promotionCode);
+    // Tạo order với status Pending (có thể có promotion code và LHT discount)
+    const order = await orderService.createOrderFromCart(userId, promotionCode, lhtDiscountAmount);
 
     // Kiểm tra nếu tổng tiền = 0 hoặc < 5000 VND (VNPay yêu cầu tối thiểu 5,000 VND)
     if (order.totalamount === 0 || order.totalamount < 5000) {
@@ -171,9 +173,156 @@ const vnpayIpn = async (req, res, next) => {
   }
 };
 
+/**
+ * [POST] /api/v1/payment/lht/pay
+ * Thanh toán đơn hàng bằng LHT tokens
+ */
+const payWithLHT = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp orderId',
+      });
+    }
+
+    const result = await lhtPaymentService.processLHTPayment(userId, orderId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Thanh toán bằng LHT thành công!',
+      data: result,
+    });
+  } catch (error) {
+    if (error.message.includes('Không tìm thấy') || error.message.includes('không có quyền')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    if (error.message.includes('đã được thanh toán')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    if (error.message.includes('không đủ')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * [GET] /api/v1/payment/lht/info/:orderId
+ * Lấy thông tin thanh toán bằng LHT (số LHT cần thiết, balance, etc.)
+ */
+const getLHTPaymentInfo = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { orderId } = req.params;
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp orderId',
+      });
+    }
+
+    const info = await lhtPaymentService.getPaymentInfo(userId, parseInt(orderId));
+
+    res.status(200).json({
+      success: true,
+      data: info,
+    });
+  } catch (error) {
+    if (error.message.includes('Không tìm thấy') || error.message.includes('không có quyền')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * [GET] /api/v1/payment/lht/calculate
+ * Tính toán số LHT cần thiết cho một số tiền VND
+ */
+const calculateLHT = async (req, res, next) => {
+  try {
+    const { vndAmount } = req.query;
+
+    if (!vndAmount || isNaN(vndAmount)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp vndAmount hợp lệ',
+      });
+    }
+
+    const lhtAmount = await lhtPaymentService.calculateLHTAmount(parseFloat(vndAmount));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        vndAmount: parseFloat(vndAmount),
+        lhtAmount: lhtAmount,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * [GET] /api/v1/payment/lht/discount/max
+ * Lấy số LHT tối đa có thể dùng để giảm giá cho một đơn hàng
+ */
+const getMaxLHTDiscount = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { orderAmount } = req.query;
+    
+    if (!orderAmount || isNaN(orderAmount)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp orderAmount hợp lệ',
+      });
+    }
+    
+    const maxDiscount = await lhtDiscountService.getMaxLHTUsable(userId, parseFloat(orderAmount));
+    res.status(200).json({ success: true, data: maxDiscount });
+  } catch (error) {
+    // If wallet not connected, return 0 discount
+    if (error.message.includes('wallet') || error.message.includes('Wallet')) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          maxLHT: 0,
+          maxDiscount: 0,
+          userBalance: 0,
+          rate: lhtDiscountService.LHT_TO_VND_RATE,
+        },
+      });
+    }
+    next(error);
+  }
+};
+
 module.exports = {
   createPaymentUrl,
   vnpayReturn,
   vnpayIpn,
+  payWithLHT,
+  getLHTPaymentInfo,
+  calculateLHT,
+  getMaxLHTDiscount,
 };
 

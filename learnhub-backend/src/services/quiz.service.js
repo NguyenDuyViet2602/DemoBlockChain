@@ -1,4 +1,5 @@
 // src/services/quiz.service.js
+const { Op } = require('sequelize');
 const {
     sequelize,
     quizzes,
@@ -23,6 +24,7 @@ const {
         'title',
         'timelimit',
         'maxattempts',
+        'quiztype',
       ],
     });
   
@@ -46,10 +48,12 @@ const {
     */
   
     // 3. Lấy danh sách câu hỏi và các lựa chọn
+    // Nếu là quiz tự luận, không cần lấy options
+    const isEssay = quizInfo.quiztype === 'essay';
     const questions = await quizquestions.findAll({
       where: { quizid: quizId },
       attributes: ['questionid', 'questiontext', 'explanation'], // Không lấy correctoptionid
-      include: [
+      include: isEssay ? [] : [
         {
           model: quizoptions,
           as: 'quizoptions',
@@ -58,7 +62,13 @@ const {
       ],
     });
   
-    return { quizInfo, questions };
+    return { 
+      quizInfo: {
+        ...quizInfo.toJSON(),
+        quiztype: quizInfo.quiztype || 'multiple_choice',
+      }, 
+      questions 
+    };
   };
   
   /**
@@ -72,13 +82,39 @@ const {
       throw new Error('Không tìm thấy bài quiz.');
     }
     
-    // (Tạm thời) logic kiểm tra số lần thử (attempts) ...
+    // 1. Kiểm tra số lần đã làm (attempts)
+    const completedSessions = await quizsessions.count({
+      where: {
+        quizid: quizId,
+        studentid: studentId,
+        submittedat: { [Op.ne]: null }, // Đã nộp
+      },
+    });
+
+    const maxAttempts = quizInfo.maxattempts || 1;
+    if (completedSessions >= maxAttempts) {
+      throw new Error(`Bạn đã hết số lần làm bài (${maxAttempts} lần).`);
+    }
+
+    // 2. Kiểm tra xem đã đạt 70% chưa - nếu rồi thì không cho làm lại
+    const bestSession = await quizsessions.findOne({
+      where: {
+        quizid: quizId,
+        studentid: studentId,
+        submittedat: { [Op.ne]: null },
+      },
+      order: [['score', 'DESC']],
+    });
+
+    if (bestSession && bestSession.score >= 70) {
+      throw new Error('Bạn đã đạt điểm >= 70%. Bạn chỉ có thể xem đáp án, không thể làm lại.');
+    }
     
-    // Tạo một phiên làm bài mới
+    // 3. Tạo một phiên làm bài mới
     const newSession = await quizsessions.create({
       quizid: quizId,
       studentid: studentId,
-      starttime: new Date(), // Giả sử starttime là bắt buộc
+      starttime: new Date(),
     });
   
     return newSession;
@@ -100,70 +136,207 @@ const {
           studentid: studentId,
           submittedat: null, // Đảm bảo chưa nộp
         },
+        include: [{
+          model: quizzes,
+          as: 'quiz',
+          attributes: ['quiztype', 'quizid'],
+        }],
         transaction: t,
       });
   
       if (!session) {
         throw new Error('Phiên làm bài không hợp lệ hoặc đã được nộp.');
       }
-  
-      // 2. Lấy danh sách câu hỏi và đáp án ĐÚNG của bài quiz này
-      const correctAnswers = await quizquestions.findAll({
-        where: { quizid: session.quizid },
-        attributes: ['questionid', 'correctoptionid'],
-        raw: true, // Chỉ lấy dữ liệu thô
-        transaction: t,
-      });
-  
-      // Chuyển thành dạng map để tra cứu nhanh: { questionId: correctOptionId }
-      const answerKey = correctAnswers.reduce((acc, q) => {
-        acc[q.questionid] = q.correctoptionid;
-        return acc;
-      }, {});
-  
-      let score = 0;
-      const answerRecords = []; // Mảng để bulkCreate vào CSDL
-  
-      // 3. Duyệt qua câu trả lời của học viên để chấm điểm
-      for (const answer of answers) {
-        const isCorrect =
-          answerKey[answer.questionId] === answer.selectedOptionId;
-        if (isCorrect) {
-          score++;
-        }
-  
-        answerRecords.push({
-          sessionid: sessionId,
-          questionid: answer.questionId,
-          selectedoptionid: answer.selectedOptionId,
-          iscorrect: isCorrect,
+
+      const quizType = session.quiz?.quiztype || 'multiple_choice';
+      let finalScore = null;
+      let answerRecords = [];
+      let allQuestions = []; // Declare here for use in response
+      let score = 0; // Declare score outside if block
+
+      // 2. Xử lý theo loại quiz
+      if (quizType === 'multiple_choice') {
+        // Quiz trắc nghiệm - tự động chấm điểm
+        allQuestions = await quizquestions.findAll({
+          where: { quizid: session.quizid },
+          attributes: ['questionid', 'correctoptionid'],
+          raw: true,
+          transaction: t,
         });
+
+        const answerKey = allQuestions.reduce((acc, q) => {
+          acc[q.questionid] = q.correctoptionid ? Number(q.correctoptionid) : null;
+          return acc;
+        }, {});
+
+        // Tạo map từ answers array để dễ lookup
+        const answersMap = answers.reduce((acc, ans) => {
+          acc[ans.questionId] = ans.selectedOptionId ? Number(ans.selectedOptionId) : null;
+          return acc;
+        }, {});
+
+        score = 0; // Reset score for multiple choice
+        // Chỉ lưu answers cho các câu hỏi đã được trả lời
+        for (const question of allQuestions) {
+          const selectedOptionId = answersMap[question.questionid];
+          const correctOptionId = answerKey[question.questionid];
+          
+          if (selectedOptionId !== undefined && selectedOptionId !== null) {
+            // Đảm bảo so sánh cùng kiểu dữ liệu (number)
+            const isCorrect = Number(correctOptionId) === Number(selectedOptionId);
+            
+            // Log để debug (có thể xóa sau)
+            if (process.env.NODE_ENV === 'development') {
+              console.log(`Question ${question.questionid}: Selected=${selectedOptionId}, Correct=${correctOptionId}, IsCorrect=${isCorrect}`);
+            }
+            
+            if (isCorrect) {
+              score++;
+            }
+
+            answerRecords.push({
+              sessionid: sessionId,
+              questionid: question.questionid,
+              selectedoptionid: selectedOptionId,
+              iscorrect: isCorrect,
+            });
+          }
+        }
+
+        finalScore = (score / allQuestions.length) * 100;
+      } else if (quizType === 'essay') {
+        // Quiz tự luận - không tự động chấm, cần teacher grade
+        // Lấy tất cả questions để đếm totalQuestions
+        allQuestions = await quizquestions.findAll({
+          where: { quizid: session.quizid },
+          attributes: ['questionid'],
+          raw: true,
+          transaction: t,
+        });
+        
+        for (const answer of answers) {
+          if (answer.essayAnswer || answer.answerText) {
+            // Không include selectedoptionid cho essay quiz (để tránh NOT NULL constraint)
+            const answerRecord = {
+              sessionid: sessionId,
+              questionid: answer.questionId,
+              essayanswer: answer.essayAnswer || answer.answerText, // Lưu câu trả lời tự luận
+              iscorrect: null, // Chưa chấm
+            };
+            // Chỉ thêm selectedoptionid nếu có giá trị (null sẽ không được include)
+            answerRecords.push(answerRecord);
+          }
+        }
+        // Score sẽ là null cho đến khi teacher chấm
       }
-  
-      // 4. Lưu tất cả câu trả lời vào CSDL
-      await quizanswers.bulkCreate(answerRecords, { transaction: t });
-  
-      // 5. Cập nhật điểm và trạng thái cho phiên làm bài
-      const finalScore = (score / correctAnswers.length) * 100; // Tính điểm %
+
+      // 3. Lưu tất cả câu trả lời vào CSDL
+      if (answerRecords.length > 0) {
+        await quizanswers.bulkCreate(answerRecords, { transaction: t });
+      }
+
+      // 4. Cập nhật điểm và trạng thái cho phiên làm bài
       await session.update(
         {
           submittedat: new Date(),
-          score: finalScore,
-          endtime: new Date(), // (Tạm thời)
+          score: finalScore, // null nếu là essay
+          endtime: new Date(),
+          isgraded: quizType === 'multiple_choice', // Multiple choice tự động chấm = đã chấm
         },
         { transaction: t }
       );
   
-      await t.commit();
-      return {
+      // Prepare response with reward info
+      const response = {
         message: 'Nộp bài thành công!',
         sessionId,
         score: finalScore,
-        totalCorrect: score,
-        totalQuestions: correctAnswers.length,
+        totalCorrect: quizType === 'multiple_choice' ? score : null,
+        totalQuestions: quizType === 'multiple_choice' ? allQuestions.length : answers.length,
+        reward: null,
       };
+
+      // Commit transaction trước khi distribute reward (reward có thể fail nhưng không ảnh hưởng đến việc nộp bài)
+      await t.commit();
+
+      // Check course completion after submitting quiz (nếu đạt >= 70%)
+      if (quizType === 'multiple_choice' && finalScore !== null && finalScore >= 70) {
+        try {
+          const progressService = require('./progress.service');
+          const courseId = session.quiz.lesson?.courseid;
+          if (courseId) {
+            const { sequelize: seq } = require('../models');
+            const t2 = await seq.transaction();
+            try {
+              await progressService.checkAndCompleteCourse(session.studentid, courseId, t2);
+              await t2.commit();
+            } catch (error) {
+              await t2.rollback();
+              console.warn('Could not check course completion after quiz submission:', error.message);
+            }
+          }
+        } catch (error) {
+          console.warn('Error checking course completion after quiz:', error.message);
+        }
+      }
+
+      // Add reward info if applicable (sau khi commit để tránh rollback nếu reward fail)
+      if (quizType === 'multiple_choice' && finalScore !== null && finalScore >= 70) {
+        try {
+          const rewardService = require('./reward.service');
+          const rewardResult = await rewardService.distributeQuizReward(studentId, session.quizid, finalScore);
+          if (rewardResult.success) {
+            response.reward = {
+              success: true,
+              amount: rewardResult.amount,
+              txHash: rewardResult.txHash,
+              message: rewardResult.message,
+            };
+            console.log(`✅ Quiz reward distributed: ${rewardResult.amount} LHT to user ${studentId}`);
+          } else {
+            response.reward = {
+              success: false,
+              message: rewardResult.message || 'Không thể phân phối reward',
+            };
+          }
+        } catch (error) {
+          // Log detailed error for debugging
+          console.error('❌ Could not distribute quiz reward:', {
+            userId: studentId,
+            quizId: session.quizid,
+            score: finalScore,
+            error: error.message,
+            stack: error.stack,
+          });
+          
+          // Provide user-friendly error message
+          response.reward = {
+            success: false,
+            message: error.message.includes('Wallet not connected') 
+              ? 'Vui lòng connect wallet để nhận rewards' 
+              : 'Không thể phân phối reward. Vui lòng thử lại sau.',
+            error: error.message,
+          };
+        }
+      } else if (quizType === 'multiple_choice' && finalScore !== null) {
+        response.reward = {
+          success: false,
+          message: `Điểm số ${finalScore.toFixed(2)}% < 70%. Cần đạt >= 70% để nhận reward.`,
+        };
+        console.log(`ℹ️  Quiz score ${finalScore.toFixed(2)}% < 70%, no reward distributed`);
+      } else if (quizType === 'essay') {
+        response.reward = {
+          success: false,
+          message: 'Bài tự luận đã được nộp. Giảng viên sẽ chấm điểm và thông báo kết quả.',
+        };
+      }
+
+      return response;
     } catch (error) {
-      await t.rollback();
+      // Chỉ rollback nếu transaction chưa được commit
+      if (t && !t.finished) {
+        await t.rollback();
+      }
       throw new Error(`Lỗi khi nộp bài: ${error.message}`);
     }
   };
@@ -260,8 +433,87 @@ const {
       throw new Error('Bạn không có quyền xóa quiz này');
     }
 
-    await quiz.destroy();
-    return { message: 'Xóa quiz thành công' };
+    // Xóa quiz và các bản ghi liên quan theo thứ tự đúng
+    // Thứ tự: quizanswers -> quizsessions -> quizoptions -> quizquestions -> quiz
+    const t = await sequelize.transaction();
+    try {
+      // 1. Lấy tất cả sessions của quiz
+      const sessions = await quizsessions.findAll({
+        where: { quizid: quizId },
+        attributes: ['sessionid'],
+        transaction: t,
+      });
+      const sessionIds = sessions.map(s => s.sessionid);
+
+      // 2. Lấy tất cả questions của quiz
+      const questions = await quizquestions.findAll({
+        where: { quizid: quizId },
+        attributes: ['questionid'],
+        transaction: t,
+      });
+      const questionIds = questions.map(q => q.questionid);
+
+      // 3. Set correctoptionid = NULL cho tất cả questions (tránh foreign key constraint)
+      if (questionIds.length > 0) {
+        await quizquestions.update(
+          { correctoptionid: null },
+          { 
+            where: { quizid: quizId },
+            transaction: t 
+          }
+        );
+      }
+
+      // 4. Xóa quizanswers TRƯỚC (có foreign key đến sessionid và questionid)
+      if (sessionIds.length > 0) {
+        await quizanswers.destroy({
+          where: { sessionid: { [Op.in]: sessionIds } },
+          transaction: t,
+        });
+      }
+      // Cũng xóa theo questionid để đảm bảo
+      if (questionIds.length > 0) {
+        await quizanswers.destroy({
+          where: { questionid: { [Op.in]: questionIds } },
+          transaction: t,
+        });
+      }
+
+      // 5. Xóa quizsessions (sau khi đã xóa quizanswers)
+      if (sessionIds.length > 0) {
+        await quizsessions.destroy({
+          where: { quizid: quizId },
+          transaction: t,
+        });
+      }
+
+      // 6. Xóa quizoptions (sau khi đã set correctoptionid = NULL)
+      if (questionIds.length > 0) {
+        await quizoptions.destroy({
+          where: { questionid: { [Op.in]: questionIds } },
+          transaction: t,
+        });
+      }
+
+      // 7. Xóa quizquestions
+      if (questionIds.length > 0) {
+        await quizquestions.destroy({
+          where: { quizid: quizId },
+          transaction: t,
+        });
+      }
+
+      // 8. Cuối cùng xóa quiz
+      await quiz.destroy({ transaction: t });
+
+      await t.commit();
+      return { message: 'Xóa quiz thành công' };
+    } catch (error) {
+      await t.rollback();
+      console.error('Error deleting quiz:', error);
+      console.error('Error stack:', error.stack);
+      throw new Error('Lỗi khi xóa quiz: ' + error.message);
+    }
   };
 
   /**
@@ -354,6 +606,8 @@ const {
 
       // Tạo các lựa chọn
       const createdOptions = [];
+      let correctOptionId = null;
+      
       for (const option of options) {
         const createdOption = await quizoptions.create(
           {
@@ -365,10 +619,15 @@ const {
         );
         createdOptions.push(createdOption);
 
-        // Nếu đây là đáp án đúng, cập nhật correctoptionid
-        if (option.iscorrect || option.optionid === correctoptionid) {
-          await question.update({ correctoptionid: createdOption.optionid }, { transaction: t });
+        // Nếu đây là đáp án đúng và chưa có đáp án đúng nào được set, lưu lại
+        if (option.iscorrect && !correctOptionId) {
+          correctOptionId = createdOption.optionid;
         }
+      }
+      
+      // Cập nhật correctoptionid cho question (chỉ một lần, cho option đúng đầu tiên)
+      if (correctOptionId) {
+        await question.update({ correctoptionid: correctOptionId }, { transaction: t });
       }
 
       await t.commit();
@@ -458,21 +717,33 @@ const {
     }
 
     // Xóa các bản ghi liên quan trước (answers và options)
-    // Mặc dù có CASCADE nhưng để đảm bảo, xóa thủ công
+    // Sử dụng transaction để đảm bảo atomicity
+    const t = await sequelize.transaction();
     try {
-      // Xóa quizanswers trước
+      // 1. Set correctoptionid = NULL trước (vì có foreign key constraint)
+      await question.update(
+        { correctoptionid: null },
+        { transaction: t }
+      );
+
+      // 2. Xóa quizanswers trước (có foreign key đến questionid và selectedoptionid)
       await quizanswers.destroy({
         where: { questionid: questionId },
+        transaction: t,
       });
 
-      // Xóa quizoptions
+      // 3. Xóa quizoptions (sau khi đã set correctoptionid = NULL)
       await quizoptions.destroy({
         where: { questionid: questionId },
+        transaction: t,
       });
 
-      // Cuối cùng xóa question
-      await question.destroy();
+      // 4. Cuối cùng xóa question
+      await question.destroy({ transaction: t });
+
+      await t.commit();
     } catch (error) {
+      await t.rollback();
       console.error('Error deleting question:', error);
       throw new Error('Lỗi khi xóa câu hỏi: ' + error.message);
     }
@@ -528,6 +799,7 @@ const {
         timelimit: quiz.timelimit,
         maxattempts: quiz.maxattempts,
         showanswersaftersubmission: quiz.showanswersaftersubmission,
+        quiztype: quiz.quiztype || 'multiple_choice',
       },
       questions: questions.map((q) => q.toJSON()),
     };
@@ -577,6 +849,253 @@ const {
     return sessions;
   };
 
+  /**
+   * Lấy danh sách quiz sessions cần chấm (essay quizzes chưa được chấm)
+   */
+  const getPendingQuizSessions = async (teacherId, page = 1, limit = 10) => {
+    const { lessons, courses, users, quizzes } = require('../models');
+    
+    // Lấy tất cả courses của teacher
+    const teacherCourses = await courses.findAll({
+      where: { teacherid: teacherId },
+      attributes: ['courseid'],
+    });
+    
+    const courseIds = teacherCourses.map(c => c.courseid);
+    
+    // Lấy tất cả lessons của các courses này
+    const teacherLessons = await lessons.findAll({
+      where: { courseid: { [Op.in]: courseIds } },
+      attributes: ['lessonid'],
+    });
+    
+    const lessonIds = teacherLessons.map(l => l.lessonid);
+    
+    // Lấy tất cả quizzes của các lessons này (chỉ essay)
+    const essayQuizzes = await quizzes.findAll({
+      where: {
+        lessonid: { [Op.in]: lessonIds },
+        quiztype: 'essay',
+      },
+      attributes: ['quizid'],
+    });
+    
+    const quizIds = essayQuizzes.map(q => q.quizid);
+    
+    // Lấy sessions chưa được chấm (isgraded = false) và đã submit
+    const { count, rows } = await quizsessions.findAndCountAll({
+      where: {
+        quizid: { [Op.in]: quizIds },
+        submittedat: { [Op.ne]: null },
+        isgraded: false,
+      },
+      include: [
+        {
+          model: users,
+          as: 'student',
+          attributes: ['userid', 'fullname', 'email'],
+        },
+        {
+          model: quizzes,
+          as: 'quiz',
+          attributes: ['quizid', 'title', 'quiztype'],
+          include: [
+            {
+              model: lessons,
+              as: 'lesson',
+              attributes: ['lessonid', 'title'],
+              include: [
+                {
+                  model: courses,
+                  as: 'course',
+                  attributes: ['courseid', 'coursename'],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      order: [['submittedat', 'DESC']],
+      limit: limit,
+      offset: (page - 1) * limit,
+    });
+    
+    return {
+      sessions: rows,
+      pagination: {
+        total: count,
+        page: page,
+        limit: limit,
+        totalPages: Math.ceil(count / limit),
+      },
+    };
+  };
+
+  /**
+   * Grade essay quiz session
+   */
+  const gradeQuizSession = async (sessionId, teacherId, score, comment) => {
+    const { lessons, courses } = require('../models');
+    
+    const session = await quizsessions.findOne({
+      where: { sessionid: sessionId },
+      include: [
+        {
+          model: quizzes,
+          as: 'quiz',
+          include: [
+            {
+              model: lessons,
+              as: 'lesson',
+              include: [
+                {
+                  model: courses,
+                  as: 'course',
+                  attributes: ['courseid', 'teacherid'],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    
+    if (!session) {
+      throw new Error('Không tìm thấy phiên làm bài');
+    }
+    
+    if (session.quiz.lesson.course.teacherid !== teacherId) {
+      throw new Error('Bạn không có quyền chấm bài này');
+    }
+    
+    if (session.quiz.quiztype !== 'essay') {
+      throw new Error('Chỉ có thể chấm bài tự luận');
+    }
+    
+    if (session.isgraded) {
+      throw new Error('Bài này đã được chấm rồi');
+    }
+    
+    // Update session
+    await session.update({
+      score: score,
+      isgraded: true,
+      gradedby: teacherId,
+      gradedat: new Date(),
+      teachercomment: comment || null,
+    });
+    
+    // If score >= 70%, distribute reward
+    if (score >= 70) {
+      try {
+        const rewardService = require('./reward.service');
+        // Convert score to number and ensure it's valid
+        const scoreNum = Number(score);
+        if (!isNaN(scoreNum) && scoreNum >= 70) {
+          await rewardService.distributeQuizReward(session.studentid, session.quizid, scoreNum);
+        }
+      } catch (error) {
+        console.warn('Could not distribute quiz reward after grading:', error.message);
+      }
+    }
+    
+    // Check if course should be completed after grading this quiz
+    try {
+      const progressService = require('./progress.service');
+      const courseId = session.quiz.lesson.course.courseid;
+      // Use a new transaction for course completion check
+      const { sequelize } = require('../models');
+      const t = await sequelize.transaction();
+      try {
+        await progressService.checkAndCompleteCourse(session.studentid, courseId, t);
+        await t.commit();
+      } catch (error) {
+        await t.rollback();
+        console.warn('Could not check course completion after grading:', error.message);
+      }
+    } catch (error) {
+      console.warn('Error checking course completion:', error.message);
+    }
+    
+    return session;
+  };
+
+  /**
+   * Lấy answers của một quiz session (cho teacher grading)
+   */
+  const getQuizSessionAnswers = async (sessionId, teacherId) => {
+    const { lessons, courses, quizquestions, quizanswers } = require('../models');
+    
+    const session = await quizsessions.findOne({
+      where: { sessionid: sessionId },
+      include: [
+        {
+          model: quizzes,
+          as: 'quiz',
+          include: [
+            {
+              model: lessons,
+              as: 'lesson',
+              include: [
+                {
+                  model: courses,
+                  as: 'course',
+                  attributes: ['courseid', 'teacherid'],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    
+    if (!session) {
+      throw new Error('Không tìm thấy phiên làm bài');
+    }
+    
+    if (session.quiz.lesson.course.teacherid !== teacherId) {
+      throw new Error('Bạn không có quyền xem bài này');
+    }
+    
+    // Get questions
+    const questions = await quizquestions.findAll({
+      where: { quizid: session.quizid },
+      include: [
+        {
+          model: quizoptions,
+          as: 'quizoptions',
+        },
+      ],
+      order: [['questionid', 'ASC']],
+    });
+    
+    // Get answers
+    const answers = await quizanswers.findAll({
+      where: { sessionid: sessionId },
+    });
+    
+    // Map answers to questions
+    const questionsWithAnswers = questions.map((question) => {
+      const answer = answers.find(a => a.questionid === question.questionid);
+      return {
+        questionid: question.questionid,
+        questiontext: question.questiontext,
+        explanation: question.explanation,
+        quizoptions: question.quizoptions,
+        answer: answer ? {
+          selectedoptionid: answer.selectedoptionid,
+          essayanswer: answer.essayanswer,
+          iscorrect: answer.iscorrect,
+        } : null,
+      };
+    });
+    
+    return {
+      session: session.toJSON(),
+      questions: questionsWithAnswers,
+    };
+  };
+
   module.exports = {
     getQuizDetails,
     startQuizSession,
@@ -590,4 +1109,7 @@ const {
     updateQuestion,
     deleteQuestion,
     getQuizResults,
+    getPendingQuizSessions,
+    gradeQuizSession,
+    getQuizSessionAnswers,
   };

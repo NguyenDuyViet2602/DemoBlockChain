@@ -14,8 +14,17 @@ router.post('/', quizController.handleCreateQuiz);
 // GET /api/v1/quizzes/lesson/:lessonId - Lấy danh sách quiz của lesson (phải đặt trước /:id)
 router.get('/lesson/:lessonId', quizController.handleGetQuizzesByLesson);
 
-// POST /api/v1/quizzes/submit/:sessionId - Nộp bài và chấm điểm (phải đặt trước /:id)
+// POST /api/v1/quizzes/submit/:sessionId - Nộp bài và chấm điểm (phải đặt trước /:id và /sessions)
 router.post('/submit/:sessionId', quizController.handleSubmitQuiz);
+
+// GET /api/v1/quizzes/sessions/pending - Lấy danh sách quiz sessions cần chấm (essay) (phải đặt trước /sessions/:sessionId)
+router.get('/sessions/pending', quizController.handleGetPendingQuizSessions);
+
+// GET /api/v1/quizzes/sessions/:sessionId/answers - Lấy answers của quiz session
+router.get('/sessions/:sessionId/answers', quizController.handleGetQuizSessionAnswers);
+
+// POST /api/v1/quizzes/sessions/:sessionId/grade - Chấm điểm essay quiz
+router.post('/sessions/:sessionId/grade', quizController.handleGradeQuizSession);
 
 // POST /api/v1/quizzes/:quizId/questions - Tạo câu hỏi cho quiz (phải đặt trước /:id)
 router.post('/:quizId/questions', quizController.handleCreateQuestion);

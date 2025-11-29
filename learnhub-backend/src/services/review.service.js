@@ -37,6 +37,16 @@ const createReview = async (studentId, courseId, rating, comment) => {
     comment,
   });
 
+  // 4. Distribute reward for review (5 LHT)
+  try {
+    const rewardService = require('./reward.service');
+    await rewardService.distributeReviewReward(studentId, newReview.reviewid);
+    console.log(`✅ Review reward distributed: 5 LHT to user ${studentId} for review #${newReview.reviewid}`);
+  } catch (error) {
+    // Log error but don't fail review creation
+    console.warn('⚠️  Could not distribute review reward:', error.message);
+  }
+
   return newReview;
 };
 

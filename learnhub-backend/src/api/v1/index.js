@@ -68,6 +68,9 @@ router.use('/payment', paymentRoutes);
 const userRoutes = require('./user.route');
 router.use('/', userRoutes); // User routes có /user và /users
 
+const blockchainRoutes = require('./blockchain.route');
+router.use('/blockchain', blockchainRoutes);
+
 // ⚠️ PENTEST DEMO ROUTES - CHỈ DÙNG ĐỂ DEMO
 const pentestRoutes = require('./pentest.route');
 router.use('/pentest', pentestRoutes);

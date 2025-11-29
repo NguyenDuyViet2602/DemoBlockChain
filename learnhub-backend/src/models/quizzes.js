@@ -41,6 +41,12 @@ module.exports = function (sequelize, DataTypes) {
         allowNull: true,
         defaultValue: 1,
       },
+      quiztype: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        defaultValue: 'multiple_choice',
+        comment: 'multiple_choice or essay',
+      },
     },
     {
       sequelize,

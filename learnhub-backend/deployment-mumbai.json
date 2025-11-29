@@ -1,0 +1,11 @@
+{
+  "network": "mumbai",
+  "deployer": "0x630525f80f6C211455A1765b335c10e2B4840110",
+  "contracts": {
+    "LearnHubToken": "0xC40444E53a0Fc052181b59942cF5d2Af9Ae93320",
+    "RewardDistribution": "0xc7D623Ff9296a64E41Cb5D06E2007CbE730605eB",
+    "CertificateNFT": "0x2B8466B458700653Ae74aFD22c19e05D1585501f",
+    "CoursePayment": "0x51A25B55a57F3e4f628092dEa7A1505868480ca3"
+  },
+  "timestamp": "2025-11-29T18:15:16.696Z"
+}

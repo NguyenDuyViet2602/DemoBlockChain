@@ -35,6 +35,12 @@ module.exports = function (sequelize, DataTypes) {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      watchtime: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        defaultValue: 0,
+        comment: 'Video watch time in seconds',
+      },
     },
     {
       sequelize,

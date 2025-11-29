@@ -32,6 +32,17 @@ module.exports = function(sequelize, DataTypes) {
       type: DataTypes.DATE,
       allowNull: true,
       defaultValue: Sequelize.Sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    lastlogin: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'Last login date for streak tracking'
+    },
+    currentstreak: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Current consecutive login days streak'
     }
   }, {
     sequelize,

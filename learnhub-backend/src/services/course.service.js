@@ -249,7 +249,17 @@ const getCourseForLearning = async (courseId, studentId) => {
   const progressPercentage =
     totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
 
-  // 5. Chuyển đổi sang plain object và thêm thông tin tiến độ
+  // 5. Kiểm tra course completion status
+  const { coursecompletions } = require('../models');
+  const courseCompletion = await coursecompletions.findOne({
+    where: {
+      studentid: studentId,
+      courseid: courseId,
+    },
+    attributes: ['completionid', 'completedat'],
+  });
+
+  // 6. Chuyển đổi sang plain object và thêm thông tin tiến độ
   const courseData = course.toJSON ? course.toJSON() : course;
   
   // Thêm thông tin completed vào mỗi lesson
@@ -273,6 +283,8 @@ const getCourseForLearning = async (courseId, studentId) => {
       percentage: progressPercentage,
       completedLessonIds: completedLessonIds,
     },
+    isCourseCompleted: !!courseCompletion,
+    completedAt: courseCompletion?.completedat || null,
   };
 };
 

@@ -31,6 +31,10 @@ var _submissions = require("./submissions");
 var _teacherrequests = require("./teacherrequests");
 var _userdetails = require("./userdetails");
 var _users = require("./users");
+var _walletaddresses = require("./walletaddresses");
+var _tokentransactions = require("./tokentransactions");
+var _rewardsearned = require("./rewardsearned");
+var _nftcertificates = require("./nftcertificates");
 
 function initModels(sequelize) {
   var assignments = _assignments(sequelize, DataTypes);
@@ -65,6 +69,10 @@ function initModels(sequelize) {
   var teacherrequests = _teacherrequests(sequelize, DataTypes);
   var userdetails = _userdetails(sequelize, DataTypes);
   var users = _users(sequelize, DataTypes);
+  var walletaddresses = _walletaddresses(sequelize, DataTypes);
+  var tokentransactions = _tokentransactions(sequelize, DataTypes);
+  var rewardsearned = _rewardsearned(sequelize, DataTypes);
+  var nftcertificates = _nftcertificates(sequelize, DataTypes);
 
   submissions.belongsTo(assignments, { as: "assignment", foreignKey: "assignmentid"});
   assignments.hasMany(submissions, { as: "submissions", foreignKey: "assignmentid"});
@@ -168,6 +176,18 @@ function initModels(sequelize) {
   users.hasMany(teacherrequests, { as: "teacherrequests", foreignKey: "userid"});
   userdetails.belongsTo(users, { as: "user", foreignKey: "userid"});
   users.hasMany(userdetails, { as: "userdetails", foreignKey: "userid"});
+  walletaddresses.belongsTo(users, { as: "user", foreignKey: "userid"});
+  users.hasMany(walletaddresses, { as: "walletaddresses", foreignKey: "userid"});
+  tokentransactions.belongsTo(users, { as: "user", foreignKey: "userid"});
+  users.hasMany(tokentransactions, { as: "tokentransactions", foreignKey: "userid"});
+  rewardsearned.belongsTo(users, { as: "user", foreignKey: "userid"});
+  users.hasMany(rewardsearned, { as: "rewardsearned", foreignKey: "userid"});
+  rewardsearned.belongsTo(tokentransactions, { as: "transaction", foreignKey: "transactionid"});
+  tokentransactions.hasMany(rewardsearned, { as: "rewardsearned", foreignKey: "transactionid"});
+  nftcertificates.belongsTo(users, { as: "user", foreignKey: "userid"});
+  users.hasMany(nftcertificates, { as: "nftcertificates", foreignKey: "userid"});
+  nftcertificates.belongsTo(courses, { as: "course", foreignKey: "courseid"});
+  courses.hasMany(nftcertificates, { as: "nftcertificates", foreignKey: "courseid"});
 
   return {
     assignments,
@@ -202,6 +222,10 @@ function initModels(sequelize) {
     teacherrequests,
     userdetails,
     users,
+    walletaddresses,
+    tokentransactions,
+    rewardsearned,
+    nftcertificates,
   };
 }
 module.exports = initModels;

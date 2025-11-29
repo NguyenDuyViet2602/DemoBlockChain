@@ -33,6 +33,15 @@ const handleStartSession = async (req, res, next) => {
     if (error.message.includes('Không tìm thấy')) {
       return res.status(404).json({ message: error.message });
     }
+    // Handle cases where user cannot retake quiz (already passed or max attempts)
+    if (error.message.includes('đạt điểm >= 70%') || 
+        error.message.includes('hết số lần làm bài') ||
+        error.message.includes('không thể làm lại')) {
+      return res.status(400).json({ 
+        message: error.message,
+        code: 'QUIZ_LIMIT_REACHED'
+      });
+    }
     next(error);
   }
 };
@@ -276,6 +285,79 @@ const handleGetQuizResults = async (req, res, next) => {
   }
 };
 
+// [GET] /api/v1/quizzes/sessions/pending
+const handleGetPendingQuizSessions = async (req, res, next) => {
+  try {
+    const teacherId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    if (req.user.role !== 'Teacher' && req.user.role !== 'Admin') {
+      return res.status(403).json({ message: 'Chỉ có Giáo viên hoặc Admin mới được xem' });
+    }
+
+    const result = await quizService.getPendingQuizSessions(teacherId, page, limit);
+    res.status(200).json({
+      message: 'Lấy danh sách bài tự luận chờ chấm thành công',
+      data: result.sessions,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// [GET] /api/v1/quizzes/sessions/:sessionId/answers
+const handleGetQuizSessionAnswers = async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+    const teacherId = req.user.id;
+
+    if (req.user.role !== 'Teacher' && req.user.role !== 'Admin') {
+      return res.status(403).json({ message: 'Chỉ có Giáo viên hoặc Admin mới được xem' });
+    }
+
+    const result = await quizService.getQuizSessionAnswers(sessionId, teacherId);
+    res.status(200).json({
+      message: 'Lấy câu trả lời thành công',
+      data: result,
+    });
+  } catch (error) {
+    if (error.message.includes('Không tìm thấy') || error.message.includes('không có quyền')) {
+      return res.status(403).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+// [POST] /api/v1/quizzes/sessions/:sessionId/grade
+const handleGradeQuizSession = async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+    const teacherId = req.user.id;
+    const { score, comment } = req.body;
+
+    if (req.user.role !== 'Teacher' && req.user.role !== 'Admin') {
+      return res.status(403).json({ message: 'Chỉ có Giáo viên hoặc Admin mới được chấm bài' });
+    }
+
+    if (!score || score < 0 || score > 100) {
+      return res.status(400).json({ message: 'Điểm số phải từ 0 đến 100' });
+    }
+
+    const session = await quizService.gradeQuizSession(sessionId, teacherId, score, comment);
+    res.status(200).json({
+      message: 'Chấm điểm thành công!',
+      data: session,
+    });
+  } catch (error) {
+    if (error.message.includes('Không tìm thấy') || error.message.includes('không có quyền')) {
+      return res.status(403).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
 module.exports = {
   handleGetQuizDetails,
   handleStartSession,
@@ -289,4 +371,7 @@ module.exports = {
   handleUpdateQuestion,
   handleDeleteQuestion,
   handleGetQuizResults,
+  handleGetPendingQuizSessions,
+  handleGetQuizSessionAnswers,
+  handleGradeQuizSession,
 };

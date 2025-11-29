@@ -13,9 +13,36 @@ const reviewController = {
       }
 
       const newReview = await reviewService.createReview(studentId, Number(courseId), rating, comment);
+      
+      // Reward distribution is handled in review.service.js
+      // Check if reward was successfully distributed by checking rewardsearned table
+      let rewardInfo = null;
+      try {
+        const { rewardsearned } = require('../models');
+        const rewardRecord = await rewardsearned.findOne({
+          where: {
+            userid: studentId,
+            activity_type: 'review',
+            activity_id: newReview.reviewid,
+          },
+        });
+        
+        if (rewardRecord) {
+          rewardInfo = {
+            success: true,
+            amount: rewardRecord.amount,
+            message: `Bạn đã nhận ${rewardRecord.amount} LHT cho việc đánh giá khóa học!`,
+          };
+        }
+      } catch (error) {
+        // Ignore error, reward might not be distributed yet
+        console.warn('Could not check reward status:', error.message);
+      }
+      
       res.status(201).json({
         message: 'Cảm ơn bạn đã gửi đánh giá!',
-        data: newReview
+        data: newReview,
+        reward: rewardInfo
       });
     } catch (error) {
       res.status(400).json({ message: error.message });

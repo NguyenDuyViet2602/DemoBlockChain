@@ -58,6 +58,21 @@ const createReply = async (studentId, discussionId, content) => {
     userid: studentId,
     content: content,
   });
+
+  // 4. Distribute reward for forum reply (3 LHT) - only first time
+  try {
+    const rewardService = require('./reward.service');
+    const rewardResult = await rewardService.distributeForumReward(studentId, newReply.replyid);
+    if (rewardResult.success) {
+      console.log(`✅ Forum reward distributed: ${rewardResult.amount} LHT to user ${studentId} for reply #${newReply.replyid}`);
+    } else {
+      console.log(`ℹ️  Forum reward not distributed: ${rewardResult.message}`);
+    }
+  } catch (error) {
+    // Log error but don't fail reply creation
+    console.warn('⚠️  Could not distribute forum reward:', error.message);
+  }
+
   return newReply;
 };
 

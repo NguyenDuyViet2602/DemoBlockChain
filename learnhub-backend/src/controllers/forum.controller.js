@@ -28,7 +28,37 @@ const handleCreateReply = async (req, res, next) => {
       return res.status(400).json({ message: 'Vui lòng cung cấp discussionId và content.' });
     }
     const newData = await forumService.createReply(studentId, Number(discussionId), content);
-    res.status(201).json({ message: 'Gửi phản hồi thành công.', data: newData });
+    
+    // Reward distribution is handled in forum.service.js
+    // Check if reward was successfully distributed by checking rewardsearned table
+    let rewardInfo = null;
+    try {
+      const { rewardsearned } = require('../models');
+      const rewardRecord = await rewardsearned.findOne({
+        where: {
+          userid: studentId,
+          activity_type: 'forum',
+          activity_id: newData.replyid,
+        },
+      });
+      
+      if (rewardRecord) {
+        rewardInfo = {
+          success: true,
+          amount: rewardRecord.amount,
+          message: `Bạn đã nhận ${rewardRecord.amount} LHT cho việc tham gia diễn đàn!`,
+        };
+      }
+    } catch (error) {
+      // Ignore error, reward might not be distributed yet
+      console.warn('Could not check reward status:', error.message);
+    }
+    
+    res.status(201).json({ 
+      message: 'Gửi phản hồi thành công.', 
+      data: newData,
+      reward: rewardInfo
+    });
   } catch (error) {
     if (error.message.includes('ghi danh') || error.message.includes('Không tìm thấy')) {
       return res.status(403).json({ message: error.message });

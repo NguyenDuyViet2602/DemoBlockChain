@@ -28,11 +28,16 @@ module.exports = function (sequelize, DataTypes) {
       },
       selectedoptionid: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true, // Allow null for essay quizzes
         references: {
           model: "quizoptions",
           key: "optionid",
         },
+      },
+      essayanswer: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'Essay answer text for essay type quizzes',
       },
       iscorrect: {
         type: DataTypes.BOOLEAN,

@@ -17,6 +17,7 @@ exports.login = async (req, res, next) => {
             message: 'Đăng nhập thành công',
             token: result.token,
             user: result.user,
+            streak: result.streak || null, // Include streak info if available
         });
     } catch (error) {
         res.status(401).json({ message: error.message });
