@@ -933,16 +933,26 @@ const MyStudents = () => {
 // Pending Submissions Component
 const PendingSubmissions = ({ onRefresh }) => {
   const [submissions, setSubmissions] = useState([]);
+  const [quizSessions, setQuizSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [quizPage, setQuizPage] = useState(1);
+  const [quizTotalPages, setQuizTotalPages] = useState(1);
+  const [activeTab, setActiveTab] = useState('assignments'); // 'assignments' or 'quizzes'
   const [showGradeModal, setShowGradeModal] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [selectedQuizSession, setSelectedQuizSession] = useState(null);
   const [gradeData, setGradeData] = useState({ grade: '', feedback: '' });
+  const [quizAnswers, setQuizAnswers] = useState([]);
 
   useEffect(() => {
-    fetchSubmissions();
-  }, [page]);
+    if (activeTab === 'assignments') {
+      fetchSubmissions();
+    } else {
+      fetchQuizSessions();
+    }
+  }, [page, quizPage, activeTab]);
 
   const fetchSubmissions = async () => {
     try {
@@ -963,29 +973,96 @@ const PendingSubmissions = ({ onRefresh }) => {
     }
   };
 
-  const handleGrade = async () => {
-    if (!gradeData.grade || gradeData.grade < 0 || gradeData.grade > 10) {
-      toast.warning('Vui lòng nhập điểm từ 0 đến 10');
-      return;
-    }
-
+  const fetchQuizSessions = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
-      await axios.put(
-        `http://localhost:8080/api/v1/teacher/submissions/${selectedSubmission.submissionid}/grade`,
-        gradeData,
+      const response = await axios.get(
+        `http://localhost:8080/api/v1/quizzes/sessions/pending?page=${quizPage}&limit=10`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      toast.success('Chấm điểm thành công!');
-      setShowGradeModal(false);
-      setSelectedSubmission(null);
-      setGradeData({ grade: '', feedback: '' });
-      fetchSubmissions();
-      if (onRefresh) onRefresh();
+      setQuizSessions(response.data.data);
+      setQuizTotalPages(response.data.pagination.totalPages);
     } catch (error) {
+      console.error('Error fetching quiz sessions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchQuizSessionDetails = async (sessionId) => {
+    try {
+      const token = localStorage.getItem('token');
+      // Get quiz session with answers
+      const response = await axios.get(
+        `http://localhost:8080/api/v1/quizzes/sessions/${sessionId}/answers`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setQuizAnswers(response.data.data.questions || []);
+    } catch (error) {
+      console.error('Error fetching quiz session details:', error);
       toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  const handleGrade = async () => {
+    if (selectedQuizSession) {
+      // Grade quiz session
+      if (!gradeData.grade || gradeData.grade < 0 || gradeData.grade > 100) {
+        toast.warning('Vui lòng nhập điểm từ 0 đến 100');
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('token');
+        await axios.post(
+          `http://localhost:8080/api/v1/quizzes/sessions/${selectedQuizSession.sessionid}/grade`,
+          {
+            score: parseFloat(gradeData.grade),
+            comment: gradeData.feedback,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        toast.success('Chấm điểm thành công!');
+        setShowGradeModal(false);
+        setSelectedQuizSession(null);
+        setGradeData({ grade: '', feedback: '' });
+        fetchQuizSessions();
+        if (onRefresh) onRefresh();
+      } catch (error) {
+        toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
+      }
+    } else if (selectedSubmission) {
+      // Grade assignment
+      if (!gradeData.grade || gradeData.grade < 0 || gradeData.grade > 10) {
+        toast.warning('Vui lòng nhập điểm từ 0 đến 10');
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('token');
+        await axios.put(
+          `http://localhost:8080/api/v1/teacher/submissions/${selectedSubmission.submissionid}/grade`,
+          gradeData,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        toast.success('Chấm điểm thành công!');
+        setShowGradeModal(false);
+        setSelectedSubmission(null);
+        setGradeData({ grade: '', feedback: '' });
+        fetchSubmissions();
+        if (onRefresh) onRefresh();
+      } catch (error) {
+        toast.error('Lỗi: ' + (error.response?.data?.message || error.message));
+      }
     }
   };
 
@@ -993,7 +1070,120 @@ const PendingSubmissions = ({ onRefresh }) => {
     <div>
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Bài tập chờ chấm</h1>
 
+      {/* Tabs */}
+      <div className="mb-6 border-b border-gray-200">
+        <div className="flex gap-4">
+          <button
+            onClick={() => {
+              setActiveTab('assignments');
+              setPage(1);
+            }}
+            className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+              activeTab === 'assignments'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Bài tập (Assignments)
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('quizzes');
+              setQuizPage(1);
+            }}
+            className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+              activeTab === 'quizzes'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Quiz tự luận (Essay)
+          </button>
+        </div>
+      </div>
+
+      {/* Quiz Sessions Table */}
+      {activeTab === 'quizzes' && (
+        <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+          {loading ? (
+            <div className="text-center py-12">Đang tải...</div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Học viên</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Khóa học</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quiz</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày nộp</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {quizSessions.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
+                          Không có quiz tự luận nào chờ chấm
+                        </td>
+                      </tr>
+                    ) : (
+                      quizSessions.map((session) => (
+                        <tr key={session.sessionid}>
+                          <td className="px-6 py-4 text-sm">{session.student?.fullname}</td>
+                          <td className="px-6 py-4 text-sm">{session.quiz?.lesson?.course?.coursename}</td>
+                          <td className="px-6 py-4 text-sm font-medium">{session.quiz?.title}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {session.submittedat 
+                              ? new Date(session.submittedat).toLocaleDateString('vi-VN')
+                              : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <button
+                              onClick={async () => {
+                                setSelectedQuizSession(session);
+                                setSelectedSubmission(null);
+                                await fetchQuizSessionDetails(session.sessionid);
+                                setShowGradeModal(true);
+                              }}
+                              className="text-emerald-600 hover:text-emerald-800 cursor-pointer"
+                            >
+                              Chấm điểm
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {/* Pagination */}
+              <div className="bg-gray-50 px-6 py-3 flex items-center justify-between">
+                <button
+                  onClick={() => setQuizPage(Math.max(1, quizPage - 1))}
+                  disabled={quizPage === 1}
+                  className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 cursor-pointer"
+                >
+                  Trước
+                </button>
+                <span className="text-sm text-gray-700">
+                  Trang {quizPage} / {quizTotalPages}
+                </span>
+                <button
+                  onClick={() => setQuizPage(Math.min(quizTotalPages, quizPage + 1))}
+                  disabled={quizPage === quizTotalPages}
+                  className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 cursor-pointer"
+                >
+                  Sau
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Submissions Table */}
+      {activeTab === 'assignments' && (
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         {loading ? (
           <div className="text-center py-12">Đang tải...</div>
@@ -1120,87 +1310,178 @@ const PendingSubmissions = ({ onRefresh }) => {
           </>
         )}
       </div>
+      )}
 
       {/* Grade Modal */}
-      {showGradeModal && selectedSubmission && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0" onClick={() => setShowGradeModal(false)} />
-          <div className="relative bg-white rounded-lg p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      {showGradeModal && (selectedSubmission || selectedQuizSession) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowGradeModal(false)} />
+          <div className="relative bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold mb-4">
-              {selectedSubmission.type === 'quiz' ? 'Chi tiết Quiz' : 'Chấm điểm bài tập'}
+              {selectedQuizSession ? 'Chấm điểm Quiz tự luận' : selectedSubmission?.type === 'quiz' ? 'Chi tiết Quiz' : 'Chấm điểm bài tập'}
             </h2>
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Loại:</p>
-                <p className="font-medium">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    selectedSubmission.type === 'quiz' 
-                      ? 'bg-blue-100 text-blue-800' 
-                      : 'bg-purple-100 text-purple-800'
-                  }`}>
-                    {selectedSubmission.type === 'quiz' ? 'Quiz' : 'Bài tập'}
-                  </span>
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Học viên:</p>
-                <p className="font-medium">{selectedSubmission.student?.fullname}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Bài tập:</p>
-                <p className="font-medium">{selectedSubmission.assignment?.title}</p>
-              </div>
-              {selectedSubmission.type === 'quiz' && selectedSubmission.grade !== null && (
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Điểm tự động:</p>
-                  <p className="font-medium text-lg">{selectedSubmission.grade.toFixed(1)}%</p>
-                </div>
-              )}
-              {selectedSubmission.type === 'assignment' && (
+              {selectedQuizSession ? (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Điểm (0-10) *</label>
-                    <input
-                      type="number"
-                      value={gradeData.grade}
-                      onChange={(e) => setGradeData({ ...gradeData, grade: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                      min="0"
-                      max="10"
-                      step="0.1"
-                      required
-                    />
+                    <p className="text-sm text-gray-600 mb-1">Học viên:</p>
+                    <p className="font-medium">{selectedQuizSession.student?.fullname}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Nhận xét</label>
-                    <textarea
-                      value={gradeData.feedback}
-                      onChange={(e) => setGradeData({ ...gradeData, feedback: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                      rows="4"
-                    />
+                    <p className="text-sm text-gray-600 mb-1">Khóa học:</p>
+                    <p className="font-medium">{selectedQuizSession.quiz?.lesson?.course?.coursename}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Quiz:</p>
+                    <p className="font-medium">{selectedQuizSession.quiz?.title}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Ngày nộp:</p>
+                    <p className="font-medium">
+                      {selectedQuizSession.submittedat 
+                        ? new Date(selectedQuizSession.submittedat).toLocaleString('vi-VN')
+                        : '-'}
+                    </p>
+                  </div>
+                  
+                  {/* Quiz Questions and Answers */}
+                  <div className="border-t pt-4 mt-4">
+                    <h3 className="font-semibold text-gray-900 mb-4">Câu trả lời của học viên:</h3>
+                    <div className="space-y-4">
+                      {quizAnswers.length === 0 ? (
+                        <p className="text-gray-500 text-center py-4">Đang tải câu trả lời...</p>
+                      ) : (
+                        quizAnswers.map((question, index) => (
+                          <div key={question.questionid} className="bg-gray-50 border rounded-lg p-4">
+                            <h4 className="font-medium text-gray-900 mb-2">
+                              Câu {index + 1}: {question.questiontext}
+                            </h4>
+                            {question.explanation && (
+                              <p className="text-sm text-gray-600 mb-2 italic">{question.explanation}</p>
+                            )}
+                            <div className="bg-white border rounded p-3 mt-2">
+                              <p className="text-sm text-gray-600 mb-1">Câu trả lời của học viên:</p>
+                              {question.answer?.essayanswer ? (
+                                <p className="text-gray-700 whitespace-pre-wrap">{question.answer.essayanswer}</p>
+                              ) : question.answer?.selectedoptionid ? (
+                                <p className="text-gray-700">
+                                  {question.quizoptions?.find(opt => opt.optionid === question.answer.selectedoptionid)?.optiontext || 'N/A'}
+                                </p>
+                              ) : (
+                                <p className="text-gray-500 italic">Chưa có câu trả lời</p>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Grading Form */}
+                  <div className="border-t pt-4 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Điểm (0-100) *</label>
+                      <input
+                        type="number"
+                        value={gradeData.grade}
+                        onChange={(e) => setGradeData({ ...gradeData, grade: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        required
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium mb-2">Nhận xét / Feedback</label>
+                      <textarea
+                        value={gradeData.feedback}
+                        onChange={(e) => setGradeData({ ...gradeData, feedback: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        rows="4"
+                        placeholder="Nhập nhận xét cho học viên..."
+                      />
+                    </div>
                   </div>
                 </>
-              )}
-              {selectedSubmission.type === 'quiz' && (
-                <div>
-                  <p className="text-sm text-gray-500 italic">
-                    Quiz đã được tự động chấm điểm. Bạn có thể xem chi tiết câu trả lời của học viên.
-                  </p>
-                </div>
-              )}
-              <div className="flex gap-2 justify-end">
+              ) : selectedSubmission ? (
+                <>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Loại:</p>
+                    <p className="font-medium">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        selectedSubmission.type === 'quiz' 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : 'bg-purple-100 text-purple-800'
+                      }`}>
+                        {selectedSubmission.type === 'quiz' ? 'Quiz' : 'Bài tập'}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Học viên:</p>
+                    <p className="font-medium">{selectedSubmission.student?.fullname}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Bài tập:</p>
+                    <p className="font-medium">{selectedSubmission.assignment?.title}</p>
+                  </div>
+                  {selectedSubmission.type === 'quiz' && selectedSubmission.grade !== null && (
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Điểm tự động:</p>
+                      <p className="font-medium text-lg">{selectedSubmission.grade.toFixed(1)}%</p>
+                    </div>
+                  )}
+                  {selectedSubmission.type === 'assignment' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Điểm (0-10) *</label>
+                        <input
+                          type="number"
+                          value={gradeData.grade}
+                          onChange={(e) => setGradeData({ ...gradeData, grade: e.target.value })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                          min="0"
+                          max="10"
+                          step="0.1"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Nhận xét</label>
+                        <textarea
+                          value={gradeData.feedback}
+                          onChange={(e) => setGradeData({ ...gradeData, feedback: e.target.value })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                          rows="4"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {selectedSubmission.type === 'quiz' && (
+                    <div>
+                      <p className="text-sm text-gray-500 italic">
+                        Quiz đã được tự động chấm điểm. Bạn có thể xem chi tiết câu trả lời của học viên.
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : null}
+              
+              <div className="flex gap-2 justify-end pt-4 border-t">
                 <button
                   onClick={() => {
                     setShowGradeModal(false);
                     setSelectedSubmission(null);
+                    setSelectedQuizSession(null);
                     setGradeData({ grade: '', feedback: '' });
+                    setQuizAnswers([]);
                   }}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-100 cursor-pointer"
                 >
                   Đóng
                 </button>
-                {selectedSubmission.type === 'assignment' && (
+                {(selectedSubmission?.type === 'assignment' || selectedQuizSession) && (
                   <button
                     onClick={handleGrade}
                     className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 cursor-pointer"
@@ -2162,6 +2443,7 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
     timelimit: 30,
     maxattempts: 1,
     showanswersaftersubmission: false,
+    quiztype: 'multiple_choice', // 'multiple_choice' or 'essay'
   });
   const [questionForm, setQuestionForm] = useState({
     questiontext: '',
@@ -2185,7 +2467,7 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
       );
       toast.success('Tạo quiz thành công!');
       setShowQuizForm(false);
-      setQuizForm({ title: '', timelimit: 30, maxattempts: 1, showanswersaftersubmission: false });
+      setQuizForm({ title: '', timelimit: 30, maxattempts: 1, showanswersaftersubmission: false, quiztype: 'multiple_choice' });
       // Refresh data ngay lập tức
       await onRefresh();
     } catch (error) {
@@ -2232,15 +2514,26 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
 
   const handleCreateQuestion = async () => {
     if (!selectedQuiz) return;
-    if (!questionForm.questiontext || questionForm.options.length < 2) {
-      toast.warning('Vui lòng nhập câu hỏi và ít nhất 2 đáp án');
+    
+    // Check if quiz is essay type
+    const isEssay = selectedQuiz.quiztype === 'essay';
+    
+    if (!questionForm.questiontext) {
+      toast.warning('Vui lòng nhập câu hỏi');
       return;
     }
-
-    const hasCorrectAnswer = questionForm.options.some((opt) => opt.iscorrect);
-    if (!hasCorrectAnswer) {
-      toast.warning('Vui lòng chọn ít nhất một đáp án đúng');
-      return;
+    
+    // For multiple choice, need options
+    if (!isEssay) {
+      if (questionForm.options.length < 2) {
+        toast.warning('Vui lòng nhập ít nhất 2 đáp án');
+        return;
+      }
+      const hasCorrectAnswer = questionForm.options.some((opt) => opt.iscorrect);
+      if (!hasCorrectAnswer) {
+        toast.warning('Vui lòng chọn ít nhất một đáp án đúng');
+        return;
+      }
     }
 
     try {
@@ -2327,7 +2620,7 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
             <button
               onClick={() => {
                 setSelectedQuiz(null);
-                setQuizForm({ title: '', timelimit: 30, maxattempts: 1, showanswersaftersubmission: false });
+                setQuizForm({ title: '', timelimit: 30, maxattempts: 1, showanswersaftersubmission: false, quiztype: 'multiple_choice' });
                 setShowQuizForm(true);
               }}
               className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2 cursor-pointer"
@@ -2343,10 +2636,19 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
               {quizzes.map((quiz) => (
                 <div
                   key={quiz.quizid}
-                  className="border rounded-lg p-4 flex items-center justify-between"
+                  className={`border rounded-lg p-4 flex items-center justify-between ${quiz.quiztype === 'essay' ? 'bg-blue-50 border-blue-200' : ''}`}
                 >
                   <div className="flex-1">
-                    <h4 className="font-medium">{quiz.title}</h4>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-medium">{quiz.title}</h4>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        quiz.quiztype === 'essay' 
+                          ? 'bg-blue-100 text-blue-700' 
+                          : 'bg-green-100 text-green-700'
+                      }`}>
+                        {quiz.quiztype === 'essay' ? 'Tự luận' : 'Trắc nghiệm'}
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-500">
                       Thời gian: {quiz.timelimit} phút | Số lần thử: {quiz.maxattempts} | Câu hỏi:{' '}
                       {quiz.quizquestions?.length || 0}
@@ -2468,6 +2770,23 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium mb-2">Loại Quiz *</label>
+                  <select
+                    value={quizForm.quiztype}
+                    onChange={(e) => setQuizForm({ ...quizForm, quiztype: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    required
+                  >
+                    <option value="multiple_choice">Trắc nghiệm (Multiple Choice)</option>
+                    <option value="essay">Tự luận (Essay)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {quizForm.quiztype === 'multiple_choice' 
+                      ? 'Quiz trắc nghiệm sẽ tự động chấm điểm' 
+                      : 'Quiz tự luận cần giảng viên chấm điểm'}
+                  </p>
+                </div>
+                <div>
                   <label className="block text-sm font-medium mb-2">Thời gian (phút)</label>
                   <input
                     type="number"
@@ -2551,48 +2870,56 @@ const QuizManagementModal = ({ lessonId, quizzes, onClose, onRefresh }) => {
                     rows="2"
                   />
                 </div>
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="block text-sm font-medium">Đáp án *</label>
-                    <button
-                      type="button"
-                      onClick={addOption}
-                      className="text-sm text-blue-600 hover:text-blue-800 cursor-pointer"
-                    >
-                      + Thêm đáp án
-                    </button>
+                {selectedQuiz?.quiztype === 'essay' ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-blue-800">
+                      Đây là câu hỏi tự luận. Học viên sẽ nhập câu trả lời dạng text và bạn sẽ chấm điểm sau.
+                    </p>
                   </div>
-                  {questionForm.options.map((option, index) => (
-                    <div key={index} className="flex items-center gap-2 mb-2">
-                      <input
-                        type="checkbox"
-                        checked={option.iscorrect}
-                        onChange={(e) => updateOption(index, 'iscorrect', e.target.checked)}
-                        className="w-4 h-4"
-                      />
-                      <input
-                        type="text"
-                        value={option.optiontext}
-                        onChange={(e) => updateOption(index, 'optiontext', e.target.value)}
-                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                        placeholder={`Đáp án ${index + 1}`}
-                        required
-                      />
-                      {questionForm.options.length > 2 && (
-                        <button
-                          type="button"
-                          onClick={() => removeOption(index)}
-                          className="text-red-600 hover:text-red-800 cursor-pointer"
-                        >
-                          <FaTrash />
-                        </button>
-                      )}
+                ) : (
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-medium">Đáp án *</label>
+                      <button
+                        type="button"
+                        onClick={addOption}
+                        className="text-sm text-blue-600 hover:text-blue-800 cursor-pointer"
+                      >
+                        + Thêm đáp án
+                      </button>
                     </div>
-                  ))}
-                  <p className="text-xs text-gray-500 mt-2">
-                    ✓ Chọn checkbox để đánh dấu đáp án đúng
-                  </p>
-                </div>
+                    {questionForm.options.map((option, index) => (
+                      <div key={index} className="flex items-center gap-2 mb-2">
+                        <input
+                          type="checkbox"
+                          checked={option.iscorrect}
+                          onChange={(e) => updateOption(index, 'iscorrect', e.target.checked)}
+                          className="w-4 h-4"
+                        />
+                        <input
+                          type="text"
+                          value={option.optiontext}
+                          onChange={(e) => updateOption(index, 'optiontext', e.target.value)}
+                          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                          placeholder={`Đáp án ${index + 1}`}
+                          required
+                        />
+                        {questionForm.options.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => removeOption(index)}
+                            className="text-red-600 hover:text-red-800 cursor-pointer"
+                          >
+                            <FaTrash />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <p className="text-xs text-gray-500 mt-2">
+                      ✓ Chọn checkbox để đánh dấu đáp án đúng
+                    </p>
+                  </div>
+                )}
                 <div className="flex gap-2 justify-end">
                   <button
                     type="button"

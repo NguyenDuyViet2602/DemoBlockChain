@@ -118,7 +118,7 @@ export default function CourseDetail() {
     try {
       setSubmittingReview(true);
       const token = localStorage.getItem('token');
-      await axios.post(
+      const response = await axios.post(
         `http://localhost:8080/api/v1/reviews/${id}`,
         {
           rating: reviewRating,
@@ -136,7 +136,17 @@ export default function CourseDetail() {
       
       // Refresh reviews
       await fetchCourseDetails();
-      toast.success('Cảm ơn bạn đã đánh giá khóa học!');
+      
+      // Check if reward was distributed
+      if (response.data?.reward) {
+        if (response.data.reward.success) {
+          toast.success(`Cảm ơn bạn đã đánh giá khóa học! Bạn đã nhận ${response.data.reward.amount} LHT!`);
+        } else {
+          toast.warning(`Cảm ơn bạn đã đánh giá khóa học! ${response.data.reward.message || ''}`);
+        }
+      } else {
+        toast.success('Cảm ơn bạn đã đánh giá khóa học!');
+      }
     } catch (err) {
       console.error('Error submitting review:', err);
       toast.error(err.response?.data?.message || 'Lỗi khi gửi đánh giá. ' + err.message);

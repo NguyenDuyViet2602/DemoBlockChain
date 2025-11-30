@@ -10,6 +10,7 @@ import {
   FaQuestionCircle,
   FaLock,
   FaChevronDown,
+  FaComments,
 } from 'react-icons/fa';
 import QuizPlayer from '../components/QuizPlayer';
 import VideoPlayer from '../components/VideoPlayer';
@@ -29,6 +30,9 @@ const LearnCourse = () => {
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [loadingComments, setLoadingComments] = useState(false);
+  const [watchTime, setWatchTime] = useState(0);
+  const [updatingWatchTime, setUpdatingWatchTime] = useState(false);
+  const [completingCourse, setCompletingCourse] = useState(false);
 
   const fetchComments = async (lessonId) => {
     try {
@@ -98,7 +102,7 @@ const LearnCourse = () => {
     try {
       setMarkingComplete(true);
       const token = localStorage.getItem('token');
-      await axios.post(
+      const response = await axios.post(
         'http://localhost:8080/api/v1/progress/complete',
         { lessonId: selectedLesson.lessonid },
         {
@@ -106,7 +110,24 @@ const LearnCourse = () => {
         }
       );
       await fetchCourseData();
-      toast.success('Đã đánh dấu bài học hoàn thành!');
+      
+      // Check if reward was distributed
+      if (response.data?.reward) {
+        if (response.data.reward.success) {
+          toast.success(`Đã đánh dấu bài học hoàn thành! Bạn đã nhận ${response.data.reward.amount} LHT!`);
+        } else {
+          // Show warning if reward already claimed, info if wallet not connected
+          const isAlreadyClaimed = response.data.reward.message?.includes('đã được phân phối') || 
+                                   response.data.reward.message?.includes('already');
+          if (isAlreadyClaimed) {
+            toast.info(response.data.reward.message || 'Reward đã được phân phối cho bài học này.');
+          } else {
+            toast.warning(`Đã đánh dấu bài học hoàn thành! ${response.data.reward.message || 'Vui lòng connect wallet để nhận rewards.'}`);
+          }
+        }
+      } else {
+        toast.success('Đã đánh dấu bài học hoàn thành!');
+      }
     } catch (err) {
       console.error('Error marking complete:', err);
       toast.error('Lỗi: ' + (err.response?.data?.message || err.message));
@@ -115,14 +136,69 @@ const LearnCourse = () => {
     }
   };
 
+  const handleCompleteCourse = async () => {
+    if (!course || course.isCourseCompleted || completingCourse) return;
+
+    try {
+      setCompletingCourse(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `http://localhost:8080/api/v1/progress/check-course-completion/${courseId}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data.isCompleted) {
+        toast.success('Chúc mừng! Bạn đã hoàn thành khóa học!');
+        // Refresh course data để cập nhật trạng thái
+        await fetchCourseData();
+      } else {
+        toast.warning('Bạn chưa đủ điều kiện hoàn thành khóa học. Vui lòng hoàn thành tất cả bài học và đạt >= 70% cho tất cả quiz.');
+      }
+    } catch (err) {
+      console.error('Error completing course:', err);
+      toast.error('Lỗi: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setCompletingCourse(false);
+    }
+  };
+
   const handleLessonClick = (lesson) => {
     setSelectedLesson(lesson);
     setSelectedQuiz(null);
     setCommentText('');
+    setWatchTime(0); // Reset watch time when switching lessons
     if (lesson) {
       fetchComments(lesson.lessonid);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleWatchTimeUpdate = async (newWatchTime) => {
+    if (!selectedLesson || updatingWatchTime) return;
+    
+    try {
+      setUpdatingWatchTime(true);
+      const token = localStorage.getItem('token');
+      await axios.post(
+        'http://localhost:8080/api/v1/progress/watch-time',
+        {
+          lessonId: selectedLesson.lessonid,
+          watchTime: newWatchTime,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setWatchTime(newWatchTime);
+    } catch (err) {
+      console.error('Error updating watch time:', err);
+      // Don't show error to user, just log it
+    } finally {
+      setUpdatingWatchTime(false);
+    }
   };
 
   const handleSubmitComment = async (e) => {
@@ -222,6 +298,8 @@ const LearnCourse = () => {
                       selectedLesson.videourl.includes('youtube.com') ||
                       selectedLesson.videourl.includes('youtu.be')
                     }
+                    lessonId={selectedLesson.lessonid}
+                    onWatchTimeUpdate={handleWatchTimeUpdate}
                   />
                 ) : (
                   <div className="aspect-video w-full bg-gray-900 flex items-center justify-center rounded-lg">
@@ -250,7 +328,13 @@ const LearnCourse = () => {
                   {selectedLesson.isCompleted && (
                     <div className="flex items-center gap-2 text-emerald-700">
                       <FaCheckCircle className="size-4" />
-                      <span className="font-medium">Completed</span>
+                      <span className="font-medium">Lesson Completed</span>
+                    </div>
+                  )}
+                  {course.isCourseCompleted && (
+                    <div className="flex items-center gap-2 text-blue-700 bg-blue-50 px-3 py-1 rounded-full">
+                      <FaCheckCircle className="size-4" />
+                      <span className="font-semibold">Course Completed</span>
                     </div>
                   )}
                 </div>
@@ -291,6 +375,45 @@ const LearnCourse = () => {
                       </li>
                     ))}
                   </ul>
+                </section>
+              )}
+
+              {/* Complete Lesson Button */}
+              {!selectedLesson.isCompleted && (
+                <section className="mt-6">
+                  <div className="bg-white rounded-lg border p-4">
+                    {watchTime < 30 ? (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-700">
+                            Bạn cần xem video ít nhất 30 giây để hoàn thành bài học.
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Đã xem: {watchTime} giây / 30 giây
+                          </p>
+                        </div>
+                        <button
+                          disabled
+                          className="px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
+                        >
+                          Hoàn thành bài học
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-gray-700">
+                          Bạn đã xem đủ video. Bấm nút bên dưới để hoàn thành bài học.
+                        </p>
+                        <button
+                          onClick={handleMarkComplete}
+                          disabled={markingComplete || selectedLesson.isCompleted}
+                          className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                        >
+                          {markingComplete ? 'Đang xử lý...' : 'Hoàn thành bài học'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </section>
               )}
 
@@ -366,12 +489,28 @@ const LearnCourse = () => {
 
         {/* Right sidebar: Curriculum */}
         <aside className="space-y-6">
+          {/* Forum Link */}
+          <div className="bg-white rounded-lg border p-4 shadow-sm">
+            <h3 className="font-semibold text-gray-900 mb-3">Diễn đàn khóa học</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Thảo luận và chia sẻ kiến thức với các học viên khác
+            </p>
+            <button
+              onClick={() => navigate(`/forum/${courseId}`)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              <FaComments /> Tham gia diễn đàn
+            </button>
+          </div>
+          
           <Curriculum
             course={course}
             selectedLesson={selectedLesson}
             selectedQuiz={selectedQuiz}
             onLessonClick={handleLessonClick}
             onQuizClick={handleQuizClick}
+            onCompleteCourse={handleCompleteCourse}
+            completingCourse={completingCourse}
           />
         </aside>
       </section>
@@ -380,7 +519,21 @@ const LearnCourse = () => {
 };
 
 // Curriculum Component
-function Curriculum({ course, selectedLesson, selectedQuiz, onLessonClick, onQuizClick }) {
+function Curriculum({ course, selectedLesson, selectedQuiz, onLessonClick, onQuizClick, onCompleteCourse, completingCourse }) {
+  // Kiểm tra điều kiện hoàn thành khóa học
+  const checkCourseCompletionEligibility = (courseData) => {
+    if (!courseData || !courseData.chapters) return false;
+    
+    // Kiểm tra tất cả lessons đã completed
+    const allLessons = courseData.chapters.flatMap(chapter => chapter.lessons || []);
+    const allLessonsCompleted = allLessons.length > 0 && allLessons.every(lesson => lesson.isCompleted);
+    
+    return allLessonsCompleted;
+  };
+
+  const canComplete = checkCourseCompletionEligibility(course);
+  const isCompleted = course?.isCourseCompleted || false;
+
   return (
     <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
       <div className="border-b p-4">
@@ -420,18 +573,22 @@ function Curriculum({ course, selectedLesson, selectedQuiz, onLessonClick, onQui
                           onClick={() => onLessonClick(lesson)}
                         />
                         {/* Quizzes for this lesson */}
-                        {lesson.quizzes?.map((quiz) => (
-                          <li
-                            key={quiz.quizid}
-                            className={`ml-7 flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-gray-50 ${
-                              selectedQuiz?.quizid === quiz.quizid ? 'bg-purple-50' : ''
-                            }`}
-                            onClick={() => onQuizClick(quiz)}
-                          >
-                            <FaQuestionCircle className="size-4 text-purple-600" />
-                            <span className="text-sm text-gray-700">{quiz.title}</span>
-                          </li>
-                        ))}
+                        {lesson.quizzes && lesson.quizzes.length > 0 && (
+                          <ul className="ml-7 space-y-1">
+                            {lesson.quizzes.map((quiz) => (
+                              <li
+                                key={quiz.quizid}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-gray-50 ${
+                                  selectedQuiz?.quizid === quiz.quizid ? 'bg-purple-50' : ''
+                                }`}
+                                onClick={() => onQuizClick(quiz)}
+                              >
+                                <FaQuestionCircle className="size-4 text-purple-600" />
+                                <span className="text-sm text-gray-700">{quiz.title}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     );
                   })}
@@ -441,8 +598,41 @@ function Curriculum({ course, selectedLesson, selectedQuiz, onLessonClick, onQui
           ))}
         </div>
       </div>
-      <div className="border-t p-4 text-center text-sm text-gray-500">
-        All lessons unlocked. Happy learning! 🎉
+      <div className="border-t p-4">
+        {isCompleted ? (
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-2 text-emerald-700 mb-2">
+              <FaCheckCircle className="size-5" />
+              <span className="font-semibold">Khóa học đã hoàn thành!</span>
+            </div>
+            <p className="text-xs text-gray-500">
+              {course.courseCompletedAt 
+                ? `Hoàn thành vào ${new Date(course.courseCompletedAt).toLocaleDateString('vi-VN')}`
+                : 'Chúc mừng bạn đã hoàn thành khóa học!'}
+            </p>
+          </div>
+        ) : (
+          <button
+            onClick={onCompleteCourse}
+            disabled={!canComplete || completingCourse}
+            className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+              canComplete && !completingCourse
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer'
+                : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+            }`}
+          >
+            {completingCourse ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Đang xử lý...
+              </span>
+            ) : canComplete ? (
+              'Hoàn thành khóa học'
+            ) : (
+              'Hoàn thành khóa học'
+            )}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -451,7 +641,7 @@ function Curriculum({ course, selectedLesson, selectedQuiz, onLessonClick, onQui
 // LessonRow Component
 function LessonRow({ title, duration, status, isActive, onClick }) {
   return (
-    <li
+    <div
       className={`flex items-center justify-between rounded-md px-3 py-2 cursor-pointer ${
         isActive ? 'bg-emerald-50' : 'hover:bg-gray-50'
       }`}
@@ -482,7 +672,7 @@ function LessonRow({ title, duration, status, isActive, onClick }) {
           <p className="text-xs text-gray-500">{duration}</p>
         </div>
       </div>
-    </li>
+    </div>
   );
 }
 

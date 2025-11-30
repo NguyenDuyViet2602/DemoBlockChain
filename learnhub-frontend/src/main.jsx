@@ -4,12 +4,15 @@ import './index.css'
 import App from './App.jsx'
 import { ToastProvider } from './contexts/ToastContext.jsx'
 import { ConfirmProvider } from './contexts/ConfirmContext.jsx'
+import { BlockchainProvider } from './contexts/BlockchainContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ToastProvider>
       <ConfirmProvider>
-        <App />
+        <BlockchainProvider>
+          <App />
+        </BlockchainProvider>
       </ConfirmProvider>
     </ToastProvider>
   </StrictMode>,

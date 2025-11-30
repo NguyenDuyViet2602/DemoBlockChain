@@ -13,7 +13,7 @@ import {
   FaForward,
 } from 'react-icons/fa';
 
-const VideoPlayer = ({ videoUrl, title, isYouTube = false }) => {
+const VideoPlayer = ({ videoUrl, title, isYouTube = false, lessonId, onWatchTimeUpdate }) => {
   const videoRef = useRef(null);
   const playerContainerRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -28,6 +28,8 @@ const VideoPlayer = ({ videoUrl, title, isYouTube = false }) => {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
   const controlsTimeoutRef = useRef(null);
+  const watchTimeUpdateIntervalRef = useRef(null);
+  const lastWatchTimeRef = useRef(0);
 
   // YouTube embed URL
   const getYouTubeEmbedUrl = (url) => {
@@ -179,8 +181,19 @@ const VideoPlayer = ({ videoUrl, title, isYouTube = false }) => {
     if (!video || isYouTube) return;
 
     const handleTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
-      setProgress((video.currentTime / duration) * 100);
+      const newTime = video.currentTime;
+      setCurrentTime(newTime);
+      setProgress((newTime / duration) * 100);
+      
+      // Track watch time (update every 10 seconds)
+      if (lessonId && onWatchTimeUpdate) {
+        const watchTime = Math.floor(newTime);
+        // Only update if watch time increased by at least 10 seconds
+        if (watchTime > lastWatchTimeRef.current && watchTime % 10 === 0) {
+          lastWatchTimeRef.current = watchTime;
+          onWatchTimeUpdate(watchTime);
+        }
+      }
     };
 
     const handleLoadedMetadata = () => {
@@ -268,8 +281,55 @@ const VideoPlayer = ({ videoUrl, title, isYouTube = false }) => {
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
       }
+      if (watchTimeUpdateIntervalRef.current) {
+        clearInterval(watchTimeUpdateIntervalRef.current);
+      }
     };
-  }, [duration, isYouTube, volume, togglePlay, toggleMute, toggleFullscreen, skip, handleVolumeChange]);
+  }, [duration, isYouTube, volume, togglePlay, toggleMute, toggleFullscreen, skip, handleVolumeChange, lessonId, onWatchTimeUpdate]);
+
+  // YouTube watch time tracking (simple approach - track when iframe is visible)
+  useEffect(() => {
+    if (!isYouTube || !lessonId || !onWatchTimeUpdate) return;
+    
+    let startTime = Date.now();
+    let totalWatchTime = 0;
+    let isVisible = true;
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden, pause tracking
+        if (isVisible) {
+          totalWatchTime += (Date.now() - startTime) / 1000;
+          isVisible = false;
+        }
+      } else {
+        // Tab is visible, resume tracking
+        if (!isVisible) {
+          startTime = Date.now();
+          isVisible = true;
+        }
+      }
+    };
+    
+    // Track every 10 seconds
+    const interval = setInterval(() => {
+      if (isVisible && !document.hidden) {
+        totalWatchTime += 10;
+        const watchTimeSeconds = Math.floor(totalWatchTime);
+        if (watchTimeSeconds > lastWatchTimeRef.current && watchTimeSeconds % 10 === 0) {
+          lastWatchTimeRef.current = watchTimeSeconds;
+          onWatchTimeUpdate(watchTimeSeconds);
+        }
+      }
+    }, 10000);
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isYouTube, lessonId, onWatchTimeUpdate]);
 
   if (isYouTube) {
     // YouTube video - use iframe với custom wrapper
@@ -286,6 +346,13 @@ const VideoPlayer = ({ videoUrl, title, isYouTube = false }) => {
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           title={title}
+          sandbox="allow-scripts allow-same-origin allow-presentation"
+          onError={(e) => {
+            // Ignore YouTube CORS errors - they're from YouTube's side, not our code
+            // These errors don't affect video playback
+            e.preventDefault();
+            e.stopPropagation();
+          }}
         />
         {/* Custom overlay cho YouTube (optional - có thể ẩn) */}
         <div

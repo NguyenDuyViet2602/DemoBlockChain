@@ -6,6 +6,7 @@ import axios from 'axios';
 import LoginPopup from './LoginPopup';
 import SignupPopup from './SignupPopup';
 import NotificationBell from './NotificationBell';
+import WalletConnect from './WalletConnect';
 import { useToast } from '../contexts/ToastContext';
 
 function Header() {
@@ -185,7 +186,7 @@ function Header() {
                 }
               }}
               className="relative p-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
-              ariaLabel="Giỏ hàng"
+              aria-label="Giỏ hàng"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="size-5"><path d="M6 6h15l-1.5 9h-12z" /><path d="M6 6l-2 0" /><circle cx="9" cy="21" r="1" /><circle cx="18" cy="21" r="1" /></svg>
               {isLoggedIn && cartItems.length > 0 && (
@@ -281,6 +282,8 @@ function Header() {
               Trở thành Giảng viên
             </button>
           )}
+          {/* Wallet Connect - Only show if logged in */}
+          {isLoggedIn && <WalletConnect />}
           <NotificationBell />
           <div ref={accountRef} className="relative">
             {isLoggedIn && user ? (
@@ -308,7 +311,7 @@ function Header() {
                 </svg>
               </button>
             ) : (
-              <IconButton ariaLabel="Tài khoản" onClick={() => setOpenAccount((v) => !v)}>
+              <IconButton aria-label="Tài khoản" onClick={() => setOpenAccount((v) => !v)}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="size-5"><circle cx="12" cy="8" r="4" /><path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6" /></svg>
               </IconButton>
             )}
@@ -472,7 +475,11 @@ function SearchInput({ className }) {
 
 function IconButton({ children, ariaLabel, onClick }) {
   return (
-    <button onClick={onClick} aria-label={ariaLabel} className="p-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer">
+    <button
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+    >
       {children}
     </button>
   );

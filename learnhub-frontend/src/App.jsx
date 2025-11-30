@@ -19,6 +19,8 @@ import BecomeInstructor from './pages/BecomeInstructor';
 import InstructorApplication from './pages/InstructorApplication';
 import PendingApplication from './pages/PendingApplication';
 import PentestDemo from './pages/PentestDemo';
+import BlockchainRewards from './pages/BlockchainRewards';
+import Forum from './pages/Forum';
 import withAuthorization from './hoc/withAuthorization';
 
 const ProtectedProfile = withAuthorization(['Student', 'Teacher', 'Admin'])(Profile);
@@ -29,6 +31,8 @@ const ProtectedLearnCourse = withAuthorization(['Student', 'Teacher', 'Admin'])(
 const ProtectedNotifications = withAuthorization(['Student', 'Teacher', 'Admin'])(Notifications);
 const ProtectedCart = withAuthorization(['Student', 'Teacher', 'Admin'])(Cart);
 const ProtectedCheckout = withAuthorization(['Student', 'Teacher', 'Admin'])(Checkout);
+const ProtectedRewards = withAuthorization(['Student', 'Teacher', 'Admin'])(BlockchainRewards);
+const ProtectedForum = withAuthorization(['Student', 'Teacher', 'Admin'])(Forum);
 
 function App() {
   return (
@@ -48,6 +52,8 @@ function App() {
             <Route path="/notifications" element={<ProtectedNotifications />} />
             <Route path="/learn/:courseId" element={<ProtectedLearnCourse />} />
             <Route path="/cart" element={<ProtectedCart />} />
+            <Route path="/rewards" element={<ProtectedRewards />} />
+            <Route path="/forum/:courseId" element={<ProtectedForum />} />
             <Route path="/checkout" element={<ProtectedCheckout />} />
             <Route path="/payment/result" element={<PaymentResult />} />
             <Route path="/become-instructor" element={<BecomeInstructor />} />

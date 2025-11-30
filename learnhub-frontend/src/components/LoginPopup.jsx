@@ -32,11 +32,18 @@ const LoginPopup = ({ onClose }) => {
         }
         try {
             const response = await axios.post('http://localhost:8080/api/v1/auth/login', { email, password });
-            const { token, user } = response.data;
+            const { token, user, streak } = response.data;
             
             // Lưu token và user info vào localStorage
             localStorage.setItem('token', token);
             localStorage.setItem('user', JSON.stringify(user));
+            
+            // Show streak notification if available
+            if (streak && streak.days > 0) {
+              const reward = streak.days === 1 ? 20 : 20 + (streak.days - 1) * 10;
+              // Note: User can claim reward from BlockchainRewards page
+              console.log(`Login streak: ${streak.days} days. Reward available: ${reward} LHT`);
+            }
             
             // Trigger custom event để Header cập nhật
             window.dispatchEvent(new Event('userLogin'));
