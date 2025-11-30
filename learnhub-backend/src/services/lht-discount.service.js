@@ -102,47 +102,52 @@ const applyLHTDiscount = async (userId, orderId, lhtAmount) => {
     let blockNumber = null;
     let transferSuccess = false;
     
-    try {
-      const transferResult = await blockchainService.transferTokensForDiscount(userAddress, lhtAmount);
-      txHash = transferResult.txHash;
-      blockNumber = transferResult.blockNumber;
-      transferSuccess = true;
-      console.log(`✅ LHT discount transferred successfully: ${txHash}`);
-    } catch (error) {
-      console.error('Error transferring LHT tokens for discount:', error);
-      
-      // If transfer fails due to insufficient allowance, record as pending
-      if (error.message.includes('allowance') || error.message.includes('approve') || error.message.includes('Insufficient')) {
-        // User hasn't approved tokens - record as pending
-        console.warn(`⚠️ User ${userId} has not approved tokens for discount. Recording as pending.`);
-        const tokenTx = await tokentransactions.create({
-          userid: userId,
-          txhash: `discount_pending_${orderId}_${Date.now()}`,
-          amount: lhtAmount.toString(),
-          type: 'spend',
-          activity_type: 'discount',
-          activity_id: orderId,
-          status: 'pending_approval',
-          block_number: null,
-        }, { transaction });
-        
-        await transaction.commit();
-        
-        return {
-          success: false,
-          txHash: null,
-          lhtAmount: lhtAmount,
-          vndDiscount: calculateVNDDiscount(lhtAmount),
-          transactionId: tokenTx.transactionid,
-          message: 'LHT discount recorded but tokens not approved. User needs to approve tokens to backend wallet first.',
-          needsApproval: true,
-        };
-      }
-      
-      // For other errors, still record but mark as failed
-      // Don't throw error - payment already succeeded, just log the issue
-      console.warn(`❌ LHT discount transfer failed for order ${orderId}: ${error.message}`);
-    }
+           try {
+             const transferResult = await blockchainService.transferTokensForDiscount(userAddress, lhtAmount);
+             txHash = transferResult.txHash;
+             blockNumber = transferResult.blockNumber;
+             transferSuccess = true;
+             console.log(`✅ LHT discount transferred successfully: ${txHash}`);
+           } catch (error) {
+             console.error('Error transferring LHT tokens for discount:', error);
+             
+             // If transfer fails due to insufficient allowance, record as pending
+             if (error.message.includes('allowance') || error.message.includes('approve') || error.message.includes('Insufficient')) {
+               // User hasn't approved tokens - record as pending
+               console.warn(`⚠️ User ${userId} has not approved tokens for discount. Recording as pending.`);
+               console.warn(`   User address: ${userAddress}`);
+               console.warn(`   LHT amount: ${lhtAmount}`);
+               console.warn(`   Order ID: ${orderId}`);
+               
+               const tokenTx = await tokentransactions.create({
+                 userid: userId,
+                 txhash: `discount_pending_${orderId}_${Date.now()}`,
+                 amount: lhtAmount.toString(),
+                 type: 'spend',
+                 activity_type: 'discount',
+                 activity_id: orderId,
+                 status: 'pending_approval',
+                 block_number: null,
+               }, { transaction });
+               
+               await transaction.commit();
+               
+               return {
+                 success: false,
+                 txHash: null,
+                 lhtAmount: lhtAmount,
+                 vndDiscount: calculateVNDDiscount(lhtAmount),
+                 transactionId: tokenTx.transactionid,
+                 message: 'LHT discount recorded but tokens not approved. User needs to approve tokens to backend wallet first.',
+                 needsApproval: true,
+                 userAddress: userAddress,
+               };
+             }
+             
+             // For other errors, still record but mark as failed
+             // Don't throw error - payment already succeeded, just log the issue
+             console.warn(`❌ LHT discount transfer failed for order ${orderId}: ${error.message}`);
+           }
     
     // Save transaction to database
     const tokenTx = await tokentransactions.create({
