@@ -14,36 +14,36 @@
 
 ---
 
-## 📋 Phân chia công việc
+##  Phân chia công việc
 
 ### **Nguyễn Duy Việt (22810310402)**
-- ✅ Thiết kế kiến trúc pentest mode (toggle vulnerable/secure)
-- ✅ Implement middleware `pentestMode.js` (backend)
-- ✅ Implement toggle mode với hotkey `Ctrl + /` (frontend)
-- ✅ Implement SQL Injection vulnerabilities (auth.service.js, course.service.js)
-- ✅ Implement XSS vulnerabilities (SearchPage.jsx, LearnCourse.jsx)
-- ✅ Tạo trang demo `/pentest` với các endpoint vulnerable
-- ✅ Tích hợp Burp Suite và Ngrok
-- ✅ Viết tài liệu và hướng dẫn
+-  Thiết kế kiến trúc pentest mode (toggle vulnerable/secure)
+-  Implement middleware `pentestMode.js` (backend)
+-  Implement toggle mode với hotkey `Ctrl + /` (frontend)
+-  Implement SQL Injection vulnerabilities (auth.service.js, course.service.js)
+-  Implement XSS vulnerabilities (SearchPage.jsx, LearnCourse.jsx)
+-  Tạo trang demo `/pentest` với các endpoint vulnerable
+-  Tích hợp Burp Suite và Ngrok
+-  Viết tài liệu và hướng dẫn
 
 ### **Nguyễn Viết Duy Anh (22810310401)**
-- ✅ Implement pentest service layer (`pentest.service.js`)
-- ✅ Implement pentest controllers (`pentest.controller.js`)
-- ✅ Implement pentest routes (`pentest.route.js`)
-- ✅ Test SQL Injection vulnerabilities
-- ✅ Test XSS vulnerabilities
-- ✅ Chụp ảnh demo và tài liệu hóa kết quả
+-  Implement pentest service layer (`pentest.service.js`)
+-  Implement pentest controllers (`pentest.controller.js`)
+-  Implement pentest routes (`pentest.route.js`)
+-  Test SQL Injection vulnerabilities
+-  Test XSS vulnerabilities
+-  Chụp ảnh demo và tài liệu hóa kết quả
 
 ### **Bùi Minh Phương (22810310403)**
-- ✅ Implement UI trang demo `/pentest` (PentestDemo.jsx)
-- ✅ Implement axios interceptor với header `X-Pentest-Mode`
-- ✅ Implement pentest mode utilities (`pentestMode.js`, `api.js`)
-- ✅ Test các payload XSS và SQLi trên frontend
-- ✅ Chụp ảnh demo và tài liệu hóa kết quả
+-  Implement UI trang demo `/pentest` (PentestDemo.jsx)
+-  Implement axios interceptor với header `X-Pentest-Mode`
+-  Implement pentest mode utilities (`pentestMode.js`, `api.js`)
+-  Test các payload XSS và SQLi trên frontend
+-  Chụp ảnh demo và tài liệu hóa kết quả
 
 ---
 
-## 🎯 Tổng quan dự án
+##  Tổng quan dự án
 
 LearnHub là một hệ thống học tập trực tuyến được xây dựng với:
 - **Frontend:** React + Vite + TailwindCSS
@@ -54,7 +54,7 @@ LearnHub là một hệ thống học tập trực tuyến được xây dựng 
 
 ---
 
-## 🚀 Hướng dẫn cài đặt và chạy
+##  Hướng dẫn cài đặt và chạy
 
 ### **Yêu cầu hệ thống:**
 - Node.js >= 16.x
@@ -122,7 +122,7 @@ Frontend sẽ chạy tại: `http://localhost:5173`
 
 ---
 
-## 🔧 Cấu hình Burp Suite và Ngrok (Để pentest)
+##  Cấu hình Burp Suite và Ngrok (Để pentest)
 
 ### **Bước 1: Cài đặt Ngrok**
 1. Download Ngrok: https://ngrok.com/download
@@ -147,13 +147,13 @@ ngrok http 5173
 
 ---
 
-## 🎮 Hướng dẫn sử dụng
+##  Hướng dẫn sử dụng
 
 ### **1. Toggle Pentest Mode**
 
 Nhấn `Ctrl + /` (hoặc `Cmd + /` trên Mac) để chuyển đổi giữa:
-- **🔴 Vuln mode:** Các lỗ hổng được kích hoạt
-- **🟢 Secure mode:** Code an toàn (production-ready)
+- ** Vuln mode:** Các lỗ hổng được kích hoạt
+- ** Secure mode:** Code an toàn (production-ready)
 
 Badge hiển thị ở góc dưới bên phải màn hình.
 
@@ -279,7 +279,7 @@ Badge hiển thị ở góc dưới bên phải màn hình.
 
 ---
 
-## 📊 Các lỗ hổng được demo
+##  Các lỗ hổng được demo
 
 ### **1. XSS (Cross-Site Scripting)**
 
@@ -336,78 +336,4 @@ Badge hiển thị ở góc dưới bên phải màn hình.
    - JWT tokens
    - Rate limiting
 
----
-
-## 📁 Cấu trúc Project
-
-```
-DemoBaoMatWebLearnHub/
-├── learnhub-backend/
-│   ├── src/
-│   │   ├── middleware/
-│   │   │   └── pentestMode.js          # Middleware đọc X-Pentest-Mode header
-│   │   ├── controllers/
-│   │   │   ├── auth.controller.js       # Login controller (SQLi vuln)
-│   │   │   ├── comment.controller.js    # Comment controller (XSS vuln)
-│   │   │   ├── course.controller.js     # Course controller (SQLi vuln)
-│   │   │   └── pentest.controller.js    # Pentest demo controllers
-│   │   ├── services/
-│   │   │   ├── auth.service.js          # Login service (SQLi)
-│   │   │   ├── comment.service.js      # Comment service (XSS)
-│   │   │   ├── course.service.js       # Course service (SQLi)
-│   │   │   └── pentest.service.js      # Pentest demo services
-│   │   └── api/v1/
-│   │       └── pentest.route.js        # Pentest routes
-│   └── app.js                          # Main app file
-│
-└── learnhub-frontend/
-    └── src/
-        ├── App.jsx                      # Hotkey toggle mode
-        ├── utils/
-        │   ├── api.js                   # Axios với X-Pentest-Mode header
-        │   └── pentestMode.js          # Toggle mode utilities
-        ├── pages/
-        │   ├── SearchPage.jsx           # XSS Reflected
-        │   ├── LearnCourse.jsx          # XSS Stored
-        │   └── PentestDemo.jsx         # Demo page
-        └── components/
-            └── LoginPopup.jsx          # Login form (SQLi)
-```
-
----
-
-## 🔗 Links hữu ích
-
-- **Repository:** https://github.com/NguyenDuyViet2602/DemoBaoMatWebLearnHub
-- **Burp Suite:** https://portswigger.net/burp/communitydownload
-- **Ngrok:** https://ngrok.com/download
-- **OWASP Top 10:** https://owasp.org/www-project-top-ten/
-
----
-
-## ⚠️ Cảnh báo
-
-**⚠️ QUAN TRỌNG:**
-- Code vulnerable chỉ dùng cho mục đích **học tập và demo**
-- **KHÔNG SỬ DỤNG** trong production
-- Tất cả lỗ hổng đều được implement cố ý để phục vụ pentest
-- Code production đã được viết an toàn với ORM và proper sanitization
-
----
-
-## 📝 License
-
-Dự án này được tạo ra cho mục đích học tập. Vui lòng không sử dụng code vulnerable trong môi trường production.
-
----
-
-## 👨‍💻 Contributors
-
-- **Nguyễn Duy Việt** - [@NguyenDuyViet2602](https://github.com/NguyenDuyViet2602)
-- **Nguyễn Viết Duy Anh** - [@DuyAnh2074](https://github.com/DuyAnh2074)
-- **Bùi Minh Phương** - [@minhp19](https://github.com/minhp19)
-
----
-
-**Chúc bạn học tập hiệu quả! 🔒**
 
