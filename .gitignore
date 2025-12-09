@@ -49,3 +49,12 @@ test/
 *.tmp
 *.temp
 
+# Pentest documentation (not needed in repo)
+PENTEST_KNOWLEDGE_AND_CODE.md
+PENTEST_VIDEO_SCRIPT.md
+BLOCKCHAIN_LEARN_TO_EARN_ANALYSIS.md
+learnhub-backend/PENTEST_README.md
+
+# Screenshots folder
+hình ảnh bảo mật/
+
